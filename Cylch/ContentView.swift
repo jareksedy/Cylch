@@ -150,6 +150,7 @@ struct SettingsView: View {
 }
 
 private struct CompactCircularValueSlider: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
@@ -163,45 +164,69 @@ private struct CompactCircularValueSlider: View {
         GeometryReader { proxy in
             let size = min(proxy.size.width, proxy.size.height)
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-            let knobInset = size * 0.10
+            let knobInset = size * 0.15
             let knobRadius = (size / 2) - knobInset
             let pointerAngle = normalizedValue * 360
 
+            let baseColor = Color(white: 0.16)
+            let lightShadow = Color(white: 0.28)
+            let darkShadow = Color.black
+            let indicatorColor: Color = colorScheme == .dark ? .black : .white
+
             ZStack {
                 Circle()
-                    .stroke(Color.primary.opacity(0.07), lineWidth: 3)
-
-                Circle()
-                    .trim(from: 0, to: normalizedValue)
-                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .shadow(color: Color.accentColor.opacity(0.35), radius: 4)
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(white: 0.18), Color(white: 0.10)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: knobRadius
-                        )
+                    .fill(baseColor)
+                    .overlay(
+                        Circle()
+                            .stroke(darkShadow.opacity(0.6), lineWidth: 6)
+                            .blur(radius: 5)
+                            .offset(x: 0, y: 0)
+                            .clipShape(Circle())
                     )
                     .overlay(
                         Circle()
-                            .stroke(Color.black.opacity(0.6), lineWidth: 8)
-                            .blur(radius: 6)
+                            .stroke(lightShadow.opacity(0.15), lineWidth: 6)
+                            .blur(radius: 5)
+                            .offset(x: 0, y: 0)
                             .clipShape(Circle())
                     )
+
+                Circle()
+                    .stroke(indicatorColor.opacity(0.06), lineWidth: 2)
+                    .padding(7)
+
+                Circle()
+                    .trim(from: 0, to: normalizedValue)
+                    .stroke(
+                        AngularGradient(
+                            colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
+                                .map { $0.opacity(normalizedValue) },
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                    .padding(7)
+                    .rotationEffect(.degrees(-90))
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(white: 0.22), Color(white: 0.14)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
+                    .shadow(color: darkShadow.opacity(0.6), radius: 5, x: 0, y: 0)
                     .padding(knobInset)
 
                 Circle()
-                    .fill(Color.white.opacity(0.9))
+                    .fill(indicatorColor.opacity(0.35))
                     .frame(width: 5, height: 5)
-                    .shadow(color: Color.white.opacity(0.3), radius: 2)
                     .position(
                         pointOnCircle(
                             center: center,
-                            radius: knobRadius * 0.68,
+                            radius: knobRadius * 0.65,
                             angleDegrees: pointerAngle
                         )
                     )
