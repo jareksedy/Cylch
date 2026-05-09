@@ -10,8 +10,13 @@ import SwiftUI
 @main
 struct CylchApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        MenuBarExtra("Cylch", systemImage: "circle") {
+            MenuBarView()
         }
+
+        Window("Settings", id: "settings") {
+            SettingsView()
+        }
+        .defaultSize(width: 400, height: 300)
     }
 }

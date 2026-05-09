@@ -7,18 +7,28 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct MenuBarView: View {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Button("Settings...") {
+            openWindow(id: "settings")
         }
-        .padding()
+        .keyboardShortcut(",", modifiers: .command)
+
+        Divider()
+
+        Button("Quit") {
+            NSApplication.shared.terminate(nil)
+        }
+        .keyboardShortcut("q", modifiers: .command)
     }
 }
 
-#Preview {
-    ContentView()
+struct SettingsView: View {
+    var body: some View {
+        Text("Hello, World!")
+            .font(.largeTitle)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
