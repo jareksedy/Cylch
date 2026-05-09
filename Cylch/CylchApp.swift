@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct CylchApp: App {
     var body: some Scene {
-        MenuBarExtra("Cylch", systemImage: "circle") {
+        MenuBarExtra("Cylch", systemImage: "circlebadge.fill") {
             MenuBarView()
         }
 

@@ -15,6 +15,7 @@ struct MenuBarView: View {
 
     var body: some View {
         Button("Settings...") {
+            NSApplication.shared.activate(ignoringOtherApps: true)
             openWindow(id: "settings")
         }
         .keyboardShortcut(",", modifiers: .command)
