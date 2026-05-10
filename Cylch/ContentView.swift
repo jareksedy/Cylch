@@ -43,7 +43,8 @@ struct SettingsView: View {
                 circularSliderCard(
                     title: "Speed",
                     value: $viewModel.speed,
-                    formattedValue: "\(Int(viewModel.speed))"
+                    formattedValue: "\(Int(viewModel.speed))",
+                    useRainbow: false
                 )
             }
 
@@ -130,7 +131,7 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String) -> some View {
+    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, useRainbow: Bool = true) -> some View {
         VStack(spacing: 6) {
             HStack {
                 Text(title)
@@ -142,7 +143,7 @@ struct SettingsView: View {
                     .monospacedDigit()
             }
 
-            CompactCircularValueSlider(value: value, range: 0...100, step: 1)
+            CompactCircularValueSlider(value: value, range: 0...100, step: 1, useRainbow: useRainbow)
                 .frame(width: 104, height: 104)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -154,6 +155,22 @@ private struct CompactCircularValueSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
+    var useRainbow: Bool = true
+
+    private var gaugeGradient: AngularGradient {
+        if useRainbow {
+            AngularGradient(
+                colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
+                    .map { $0.opacity(normalizedValue) },
+                center: .center
+            )
+        } else {
+            AngularGradient(
+                colors: [Color.accentColor.opacity(normalizedValue)],
+                center: .center
+            )
+        }
+    }
 
     private var normalizedValue: Double {
         let clamped = min(max(value, range.lowerBound), range.upperBound)
@@ -192,19 +209,20 @@ private struct CompactCircularValueSlider: View {
                     )
 
                 Circle()
-                    .stroke(indicatorColor.opacity(0.06), lineWidth: 2)
+                    .stroke(indicatorColor.opacity(0.06), lineWidth: 1)
                     .padding(7)
 
                 Circle()
                     .trim(from: 0, to: normalizedValue)
-                    .stroke(
-                        AngularGradient(
-                            colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
-                                .map { $0.opacity(normalizedValue) },
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                    )
+                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .blur(radius: 4)
+                    .opacity(0.5)
+                    .padding(7)
+                    .rotationEffect(.degrees(-90))
+
+                Circle()
+                    .trim(from: 0, to: normalizedValue)
+                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .padding(7)
                     .rotationEffect(.degrees(-90))
 
@@ -212,8 +230,8 @@ private struct CompactCircularValueSlider: View {
                     .fill(
                         LinearGradient(
                             colors: [Color(white: 0.22), Color(white: 0.14)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
                     )
                     .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
@@ -221,8 +239,9 @@ private struct CompactCircularValueSlider: View {
                     .padding(knobInset)
 
                 Circle()
-                    .fill(indicatorColor.opacity(0.35))
+                    .fill(Color.accentColor)
                     .frame(width: 5, height: 5)
+                    .shadow(color: Color.accentColor.opacity(0.6), radius: 4)
                     .position(
                         pointOnCircle(
                             center: center,
@@ -248,6 +267,12 @@ private struct CompactCircularValueSlider: View {
                         value = min(range.upperBound, max(range.lowerBound, snappedValue))
                     }
             )
+            .background(
+                ScrollWheelView { delta in
+                    let newValue = value + delta * step * 0.05
+                    value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
+                }
+            )
         }
     }
 
@@ -265,14 +290,55 @@ private struct CompactCircularValueSlider: View {
     }
 }
 
+private struct ScrollWheelView: NSViewRepresentable {
+    var onScroll: (Double) -> Void
+
+    func makeNSView(context: Context) -> ScrollWheelNSView {
+        let view = ScrollWheelNSView()
+        view.onScroll = onScroll
+        return view
+    }
+
+    func updateNSView(_ nsView: ScrollWheelNSView, context: Context) {
+        nsView.onScroll = onScroll
+    }
+
+    class ScrollWheelNSView: NSView {
+        var onScroll: ((Double) -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self,
+                      let eventWindow = event.window,
+                      eventWindow == self.window else { return event }
+                let locationInView = self.convert(event.locationInWindow, from: nil)
+                guard self.bounds.contains(locationInView) else { return event }
+                let delta = Double(event.scrollingDeltaY)
+                if delta != 0 { self.onScroll?(delta) }
+                return event
+            }
+        }
+
+        override func removeFromSuperview() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            super.removeFromSuperview()
+        }
+    }
+}
+
 @MainActor
 final class SettingsViewModel: ObservableObject {
     static let shared = SettingsViewModel()
 
-    @Published var brightness: Double = 80 {
+    @Published var brightness: Double = 75 {
         didSet { pushConfig() }
     }
-    @Published var speed: Double = 60 {
+    @Published var speed: Double = 25 {
         didSet { pushConfig() }
     }
     @Published var ledCount: Int = 65 {
@@ -382,7 +448,7 @@ final class AdalightController {
     var onError: (@MainActor (String) -> Void)?
 
     private var streamTask: Task<Void, Never>?
-    private let configStore = StreamConfigStore(initial: StreamConfig(brightness: 80, speed: 60, ledCount: 65))
+    private let configStore = StreamConfigStore(initial: StreamConfig(brightness: 75, speed: 25, ledCount: 65))
 
     func updateConfig(_ config: StreamConfig) {
         Task {
