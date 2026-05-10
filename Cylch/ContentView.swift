@@ -161,12 +161,12 @@ private struct CompactCircularValueSlider: View {
         if useRainbow {
             AngularGradient(
                 colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
-                    .map { $0.opacity(normalizedValue) },
+                    .map { $0.opacity(0.1 + 0.9 * normalizedValue) },
                 center: .center
             )
         } else {
             AngularGradient(
-                colors: [Color.accentColor.opacity(normalizedValue)],
+                colors: [Color.accentColor.opacity(0.1 + 0.9 * normalizedValue)],
                 center: .center
             )
         }
@@ -209,7 +209,8 @@ private struct CompactCircularValueSlider: View {
                     )
 
                 Circle()
-                    .stroke(indicatorColor.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.black.opacity(0.15), lineWidth: 3)
+                    .blur(radius: 0.5)
                     .padding(7)
 
                 Circle()
@@ -264,13 +265,17 @@ private struct CompactCircularValueSlider: View {
                         let normalized = clamped / 360.0
                         let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
                         let snappedValue = (rawValue / step).rounded() * step
-                        value = min(range.upperBound, max(range.lowerBound, snappedValue))
+                        withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                            value = min(range.upperBound, max(range.lowerBound, snappedValue))
+                        }
                     }
             )
             .background(
                 ScrollWheelView { delta in
                     let newValue = value + delta * step * 0.05
-                    value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
+                    withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                        value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
+                    }
                 }
             )
         }
