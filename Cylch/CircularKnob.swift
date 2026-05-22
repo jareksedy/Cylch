@@ -63,25 +63,16 @@ struct CircularKnob: View {
             let darkShadow = isDark ? Color.black : Color(white: 0.55)
 
             ZStack {
-                Circle()
-                    .fill(baseColor)
-                    .overlay(
-                        Circle()
-                            .stroke(darkShadow.opacity(0.6), lineWidth: 6)
-                            .blur(radius: 5)
-                            .clipShape(Circle())
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(lightShadow.opacity(0.15), lineWidth: 6)
-                            .blur(radius: 5)
-                            .clipShape(Circle())
-                    )
-
-                Circle()
-                    .stroke(darkShadow.opacity(trackOpacity), lineWidth: trackLineWidth)
-                    .blur(radius: 0.5)
-                    .padding(7)
+                StaticKnobChrome(
+                    isDark: isDark,
+                    baseColor: baseColor,
+                    lightShadow: lightShadow,
+                    darkShadow: darkShadow,
+                    trackOpacity: trackOpacity,
+                    trackLineWidth: trackLineWidth,
+                    knobInset: knobInset
+                )
+                .drawingGroup()
 
                 Circle()
                     .trim(from: 0, to: normalizedValue)
@@ -98,30 +89,12 @@ struct CircularKnob: View {
                     .rotationEffect(.degrees(-90))
 
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: isDark
-                                ? [Color(white: 0.22), Color(white: 0.16)]
-                                : [Color(white: 0.94), Color(white: 0.86)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
-                    .shadow(color: darkShadow.opacity(0.6), radius: 5, x: 0, y: 0)
-                    .padding(knobInset)
-
-                Circle()
                     .fill(pointerColor)
                     .frame(width: 5, height: 5)
                     .shadow(color: pointerColor.opacity(0.6), radius: 4)
-                    .position(
-                        pointOnCircle(
-                            center: center,
-                            radius: knobRadius * 0.65,
-                            angleDegrees: pointerAngle
-                        )
-                    )
+                    .offset(y: -knobRadius * 0.65)
+                    .rotationEffect(.degrees(pointerAngle))
+                    .animation(.smooth(duration: 0.1), value: pointerAngle)
             }
             .contentShape(Circle())
             .gesture(
@@ -137,15 +110,13 @@ struct CircularKnob: View {
                         let normalized = clamped / 360.0
                         let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
                         let snappedValue = (rawValue / step).rounded() * step
-                        withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
-                            value = min(range.upperBound, max(range.lowerBound, snappedValue))
-                        }
+                        value = min(range.upperBound, max(range.lowerBound, snappedValue))
                     }
             )
             .background(
                 ScrollWheelView { delta in
                     let newValue = value + delta * step * scrollSensitivity
-                    withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                    withAnimation(.smooth(duration: 0.15)) {
                         value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
                     }
                 }
@@ -157,13 +128,53 @@ struct CircularKnob: View {
         let candidates = [rawAngle - 360, rawAngle, rawAngle + 360]
         return candidates.min(by: { abs($0 - currentAngle) < abs($1 - currentAngle) }) ?? rawAngle
     }
+}
 
-    private func pointOnCircle(center: CGPoint, radius: CGFloat, angleDegrees: Double) -> CGPoint {
-        let radians = (angleDegrees - 90) * .pi / 180
-        return CGPoint(
-            x: center.x + cos(radians) * radius,
-            y: center.y + sin(radians) * radius
-        )
+private struct StaticKnobChrome: View {
+    let isDark: Bool
+    let baseColor: Color
+    let lightShadow: Color
+    let darkShadow: Color
+    let trackOpacity: Double
+    let trackLineWidth: CGFloat
+    let knobInset: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(baseColor)
+                .overlay(
+                    Circle()
+                        .stroke(darkShadow.opacity(0.6), lineWidth: 6)
+                        .blur(radius: 5)
+                        .clipShape(Circle())
+                )
+                .overlay(
+                    Circle()
+                        .stroke(lightShadow.opacity(0.15), lineWidth: 6)
+                        .blur(radius: 5)
+                        .clipShape(Circle())
+                )
+
+            Circle()
+                .stroke(darkShadow.opacity(trackOpacity), lineWidth: trackLineWidth)
+                .blur(radius: 0.5)
+                .padding(7)
+
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: isDark
+                            ? [Color(white: 0.22), Color(white: 0.16)]
+                            : [Color(white: 0.94), Color(white: 0.86)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
+                .shadow(color: darkShadow.opacity(0.6), radius: 5, x: 0, y: 0)
+                .padding(knobInset)
+        }
     }
 }
 
