@@ -17,6 +17,6 @@ struct CylchApp: App {
         Window("Settings", id: "settings") {
             SettingsView()
         }
-        .defaultSize(width: 540, height: 320)
+        .defaultSize(width: 670, height: 380)
     }
 }

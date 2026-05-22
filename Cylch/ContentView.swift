@@ -10,6 +10,24 @@ import Foundation
 import Darwin
 import Combine
 
+enum LEDEffect: String, CaseIterable, Identifiable {
+    case rainbow = "Rainbow"
+    case `static` = "Static"
+    case breathe = "Breathe"
+    case pulse = "Pulse"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .rainbow: "rainbow"
+        case .static: "circle.fill"
+        case .breathe: "wind"
+        case .pulse: "waveform.path"
+        }
+    }
+}
+
 struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
@@ -33,79 +51,86 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 18) {
-                circularSliderCard(
-                    title: "Brightness",
-                    value: $viewModel.brightness,
-                    formattedValue: "\(Int(viewModel.brightness))%"
-                )
-                circularSliderCard(
-                    title: "Speed",
-                    value: $viewModel.speed,
-                    formattedValue: "\(Int(viewModel.speed))",
-                    useRainbow: false
-                )
+        NavigationSplitView {
+            List(LEDEffect.allCases, selection: $viewModel.selectedEffect) { effect in
+                Label(effect.rawValue, systemImage: effect.iconName)
             }
-
-            statusLine
-
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("Serial Port")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Refresh") {
-                            viewModel.refreshPorts()
-                        }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                    }
-
-                    Picker("Serial Port", selection: $viewModel.selectedPort) {
-                        ForEach(viewModel.availablePorts, id: \.self) { port in
-                            Text(port).tag(port)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 260)
-                    .disabled(viewModel.connected)
+            .navigationSplitViewColumnWidth(160)
+        } detail: {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 18) {
+                    circularSliderCard(
+                        title: "Brightness",
+                        value: $viewModel.brightness,
+                        formattedValue: "\(Int(viewModel.brightness))%"
+                    )
+                    circularSliderCard(
+                        title: "Speed",
+                        value: $viewModel.speed,
+                        formattedValue: "\(Int(viewModel.speed))",
+                        gaugeStyle: .solid(.accentColor)
+                    )
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("LEDs")
+                statusLine
+
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Stepper(value: $viewModel.ledCount, in: 1...300) {
-                        Text("\(viewModel.ledCount)")
-                            .monospacedDigit()
-                            .frame(width: 40, alignment: .leading)
-                    }
-                    .frame(width: 120)
+                        .foregroundStyle(.red)
                 }
 
                 Spacer(minLength: 0)
 
-                Button(viewModel.connected ? "Disconnect" : "Connect") {
-                    viewModel.toggleConnection()
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("Serial Port")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Refresh") {
+                                viewModel.refreshPorts()
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+
+                        Picker("Serial Port", selection: $viewModel.selectedPort) {
+                            ForEach(viewModel.availablePorts, id: \.self) { port in
+                                Text(port).tag(port)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 260)
+                        .disabled(viewModel.connected)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("LEDs")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Stepper(value: $viewModel.ledCount, in: 1...300) {
+                            Text("\(viewModel.ledCount)")
+                                .monospacedDigit()
+                                .frame(width: 40, alignment: .leading)
+                        }
+                        .frame(width: 120)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button(viewModel.connected ? "Disconnect" : "Connect") {
+                        viewModel.toggleConnection()
+                    }
+                    .controlSize(.regular)
+                    .disabled(viewModel.selectedPort.isEmpty)
                 }
-                .controlSize(.regular)
-                .disabled(viewModel.selectedPort.isEmpty)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 16)
-        .frame(width: 540, height: 320)
         .onAppear {
             viewModel.onAppear()
         }
@@ -117,7 +142,7 @@ struct SettingsView: View {
                 .fill(viewModel.connected ? .green : .secondary)
                 .frame(width: 7, height: 7)
 
-            Text(viewModel.connected ? "Streaming rainbow" : "Idle")
+            Text(viewModel.connected ? "Streaming \(viewModel.selectedEffect.rawValue.lowercased())" : "Idle")
             Text("•")
             Text("\(viewModel.ledCount) LEDs")
             Text("•")
@@ -131,7 +156,7 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, useRainbow: Bool = true) -> some View {
+    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, gaugeStyle: CircularKnob.GaugeStyle = .rainbow) -> some View {
         VStack(spacing: 6) {
             HStack {
                 Text(title)
@@ -143,196 +168,10 @@ struct SettingsView: View {
                     .monospacedDigit()
             }
 
-            CompactCircularValueSlider(value: value, range: 0...100, step: 1, useRainbow: useRainbow)
+            CircularKnob(value: value, gaugeStyle: gaugeStyle)
                 .frame(width: 104, height: 104)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct CompactCircularValueSlider: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    var useRainbow: Bool = true
-
-    private var gaugeGradient: AngularGradient {
-        if useRainbow {
-            AngularGradient(
-                colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
-                    .map { $0.opacity(0.1 + 0.9 * normalizedValue) },
-                center: .center
-            )
-        } else {
-            AngularGradient(
-                colors: [Color.accentColor.opacity(0.1 + 0.9 * normalizedValue)],
-                center: .center
-            )
-        }
-    }
-
-    private var normalizedValue: Double {
-        let clamped = min(max(value, range.lowerBound), range.upperBound)
-        return (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = min(proxy.size.width, proxy.size.height)
-            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-            let knobInset = size * 0.15
-            let knobRadius = (size / 2) - knobInset
-            let pointerAngle = normalizedValue * 360
-
-            let baseColor = Color(white: 0.16)
-            let lightShadow = Color(white: 0.28)
-            let darkShadow = Color.black
-            let indicatorColor: Color = colorScheme == .dark ? .black : .white
-
-            ZStack {
-                Circle()
-                    .fill(baseColor)
-                    .overlay(
-                        Circle()
-                            .stroke(darkShadow.opacity(0.6), lineWidth: 6)
-                            .blur(radius: 5)
-                            .offset(x: 0, y: 0)
-                            .clipShape(Circle())
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(lightShadow.opacity(0.15), lineWidth: 6)
-                            .blur(radius: 5)
-                            .offset(x: 0, y: 0)
-                            .clipShape(Circle())
-                    )
-
-                Circle()
-                    .stroke(Color.black.opacity(0.15), lineWidth: 3)
-                    .blur(radius: 0.5)
-                    .padding(7)
-
-                Circle()
-                    .trim(from: 0, to: normalizedValue)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .blur(radius: 4)
-                    .opacity(0.5)
-                    .padding(7)
-                    .rotationEffect(.degrees(-90))
-
-                Circle()
-                    .trim(from: 0, to: normalizedValue)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .padding(7)
-                    .rotationEffect(.degrees(-90))
-
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(white: 0.22), Color(white: 0.14)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
-                    .shadow(color: darkShadow.opacity(0.6), radius: 5, x: 0, y: 0)
-                    .padding(knobInset)
-
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 5, height: 5)
-                    .shadow(color: Color.accentColor.opacity(0.6), radius: 4)
-                    .position(
-                        pointOnCircle(
-                            center: center,
-                            radius: knobRadius * 0.65,
-                            angleDegrees: pointerAngle
-                        )
-                    )
-            }
-            .contentShape(Circle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { drag in
-                        let dx = drag.location.x - center.x
-                        let dy = drag.location.y - center.y
-                        var rawAngle = atan2(dy, dx) * 180 / .pi + 90
-                        if rawAngle < 0 { rawAngle += 360 }
-                        let currentAngle = normalizedValue * 360
-                        let projected = projectedAngle(rawAngle, near: currentAngle)
-                        let clamped = min(max(projected, 0), 360)
-                        let normalized = clamped / 360.0
-                        let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
-                        let snappedValue = (rawValue / step).rounded() * step
-                        withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
-                            value = min(range.upperBound, max(range.lowerBound, snappedValue))
-                        }
-                    }
-            )
-            .background(
-                ScrollWheelView { delta in
-                    let newValue = value + delta * step * 0.05
-                    withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
-                        value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
-                    }
-                }
-            )
-        }
-    }
-
-    private func projectedAngle(_ rawAngle: Double, near currentAngle: Double) -> Double {
-        let candidates = [rawAngle - 360, rawAngle, rawAngle + 360]
-        return candidates.min(by: { abs($0 - currentAngle) < abs($1 - currentAngle) }) ?? rawAngle
-    }
-
-    private func pointOnCircle(center: CGPoint, radius: CGFloat, angleDegrees: Double) -> CGPoint {
-        let radians = (angleDegrees - 90) * .pi / 180
-        return CGPoint(
-            x: center.x + cos(radians) * radius,
-            y: center.y + sin(radians) * radius
-        )
-    }
-}
-
-private struct ScrollWheelView: NSViewRepresentable {
-    var onScroll: (Double) -> Void
-
-    func makeNSView(context: Context) -> ScrollWheelNSView {
-        let view = ScrollWheelNSView()
-        view.onScroll = onScroll
-        return view
-    }
-
-    func updateNSView(_ nsView: ScrollWheelNSView, context: Context) {
-        nsView.onScroll = onScroll
-    }
-
-    class ScrollWheelNSView: NSView {
-        var onScroll: ((Double) -> Void)?
-        private var monitor: Any?
-
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-                guard let self,
-                      let eventWindow = event.window,
-                      eventWindow == self.window else { return event }
-                let locationInView = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.contains(locationInView) else { return event }
-                let delta = Double(event.scrollingDeltaY)
-                if delta != 0 { self.onScroll?(delta) }
-                return event
-            }
-        }
-
-        override func removeFromSuperview() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
-            super.removeFromSuperview()
-        }
     }
 }
 
@@ -355,6 +194,9 @@ final class SettingsViewModel: ObservableObject {
             }
             pushConfig()
         }
+    }
+    @Published var selectedEffect: LEDEffect = .rainbow {
+        didSet { pushConfig() }
     }
     @Published var selectedPort: String = ""
     @Published var connected: Bool = false
@@ -411,7 +253,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private var currentConfig: StreamConfig {
-        StreamConfig(brightness: brightness, speed: speed, ledCount: ledCount)
+        StreamConfig(brightness: brightness, speed: speed, ledCount: ledCount, effect: selectedEffect)
     }
 
     private static func discoverSerialPorts() -> [String] {
@@ -430,6 +272,7 @@ struct StreamConfig: Sendable {
     var brightness: Double
     var speed: Double
     var ledCount: Int
+    var effect: LEDEffect = .rainbow
 }
 
 actor StreamConfigStore {
