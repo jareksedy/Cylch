@@ -21,6 +21,7 @@ struct CircularKnob: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled) private var isEnabled
     @State private var dragAngle: Double?
 
     private var normalizedValue: Double {
@@ -97,10 +98,13 @@ struct CircularKnob: View {
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
             }
+            .opacity(isEnabled ? 1 : 0.4)
+            .saturation(isEnabled ? 1 : 0)
             .contentShape(Circle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in
+                        guard isEnabled else { return }
                         let dx = drag.location.x - center.x
                         let dy = drag.location.y - center.y
                         var rawAngle = atan2(dy, dx) * 180 / .pi + 90
@@ -129,6 +133,7 @@ struct CircularKnob: View {
             )
             .background(
                 ScrollWheelView { delta in
+                    guard isEnabled else { return }
                     let newValue = value + delta * step * scrollSensitivity
                     withAnimation(.smooth(duration: 0.15)) {
                         value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))

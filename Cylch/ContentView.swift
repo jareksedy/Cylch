@@ -156,7 +156,7 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, gaugeStyle: CircularKnob.GaugeStyle = .rainbow) -> some View {
+    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, gaugeStyle: CircularKnob.GaugeStyle = .rainbow, disabled: Bool = false) -> some View {
         VStack(spacing: 6) {
             HStack {
                 Text(title)
@@ -170,6 +170,7 @@ struct SettingsView: View {
 
             CircularKnob(value: value, gaugeStyle: gaugeStyle)
                 .frame(width: 104, height: 104)
+                .disabled(disabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
