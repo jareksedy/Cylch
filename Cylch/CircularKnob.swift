@@ -104,10 +104,17 @@ struct CircularKnob: View {
                         let dy = drag.location.y - center.y
                         var rawAngle = atan2(dy, dx) * 180 / .pi + 90
                         if rawAngle < 0 { rawAngle += 360 }
-                        let currentAngle = normalizedValue * 360
-                        let projected = projectedAngle(rawAngle, near: currentAngle)
-                        let clamped = min(max(projected, 0), 360)
-                        let normalized = clamped / 360.0
+
+                        let targetAngle: Double
+                        if drag.translation == .zero {
+                            targetAngle = rawAngle
+                        } else {
+                            let currentAngle = normalizedValue * 360
+                            let projected = projectedAngle(rawAngle, near: currentAngle)
+                            targetAngle = min(max(projected, 0), 360)
+                        }
+
+                        let normalized = targetAngle / 360.0
                         let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
                         let snappedValue = (rawValue / step).rounded() * step
                         value = min(range.upperBound, max(range.lowerBound, snappedValue))
