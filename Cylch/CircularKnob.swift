@@ -21,6 +21,7 @@ struct CircularKnob: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var dragAngle: Double?
 
     private var normalizedValue: Double {
         let clamped = min(max(value, range.lowerBound), range.upperBound)
@@ -55,7 +56,7 @@ struct CircularKnob: View {
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
             let knobInset = size * 0.15
             let knobRadius = (size / 2) - knobInset
-            let pointerAngle = normalizedValue * 360
+            let pointerAngle = dragAngle ?? (normalizedValue * 360)
 
             let isDark = colorScheme == .dark
             let baseColor = isDark ? Color(white: 0.16) : Color(white: 0.88)
@@ -94,7 +95,7 @@ struct CircularKnob: View {
                     .shadow(color: pointerColor.opacity(0.6), radius: 4)
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
-                    .animation(.smooth(duration: 0.1), value: pointerAngle)
+                    .animation(dragAngle == nil ? .smooth(duration: 0.15) : nil, value: pointerAngle)
             }
             .contentShape(Circle())
             .gesture(
@@ -109,15 +110,20 @@ struct CircularKnob: View {
                         if drag.translation == .zero {
                             targetAngle = rawAngle
                         } else {
-                            let currentAngle = normalizedValue * 360
+                            let currentAngle = dragAngle ?? (normalizedValue * 360)
                             let projected = projectedAngle(rawAngle, near: currentAngle)
                             targetAngle = min(max(projected, 0), 360)
                         }
+
+                        dragAngle = targetAngle
 
                         let normalized = targetAngle / 360.0
                         let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
                         let snappedValue = (rawValue / step).rounded() * step
                         value = min(range.upperBound, max(range.lowerBound, snappedValue))
+                    }
+                    .onEnded { _ in
+                        dragAngle = nil
                     }
             )
             .background(
