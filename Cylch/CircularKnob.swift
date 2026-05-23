@@ -29,25 +29,21 @@ struct CircularKnob: View {
     }
 
     private var gaugeGradient: AngularGradient {
-        let opacity = gaugeMinOpacity + (1 - gaugeMinOpacity) * normalizedValue
         switch gaugeStyle {
         case .rainbow:
             return AngularGradient(
-                colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red]
-                    .map { $0.opacity(opacity) },
+                colors: [Color.red, .yellow, .green, .cyan, .blue, .purple, .red],
                 center: .center
             )
         case .solid(let color):
-            return AngularGradient(
-                colors: [color.opacity(opacity)],
-                center: .center
-            )
+            return AngularGradient(colors: [color], center: .center)
         case .gradient(let stops):
-            return AngularGradient(
-                stops: stops.map { Gradient.Stop(color: $0.color.opacity(opacity), location: $0.location) },
-                center: .center
-            )
+            return AngularGradient(stops: stops, center: .center)
         }
+    }
+
+    private var gaugeOpacity: Double {
+        gaugeMinOpacity + (1 - gaugeMinOpacity) * normalizedValue
     }
 
     var body: some View {
@@ -57,6 +53,7 @@ struct CircularKnob: View {
             let knobInset = size * 0.15
             let knobRadius = (size / 2) - knobInset
             let pointerAngle = dragAngle ?? (normalizedValue * 360)
+            let gaugeProgress = pointerAngle / 360
 
             let isDark = colorScheme == .dark
             let baseColor = isDark ? Color(white: 0.16) : Color(white: 0.88)
@@ -76,18 +73,21 @@ struct CircularKnob: View {
                 .drawingGroup()
 
                 Circle()
-                    .trim(from: 0, to: normalizedValue)
+                    .trim(from: 0, to: gaugeProgress)
                     .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeLineWidth * 2, lineCap: .round))
                     .blur(radius: gaugeGlowRadius)
-                    .opacity(gaugeGlowOpacity)
+                    .opacity(gaugeGlowOpacity * gaugeOpacity)
                     .padding(7)
                     .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.05), value: gaugeProgress)
 
                 Circle()
-                    .trim(from: 0, to: normalizedValue)
+                    .trim(from: 0, to: gaugeProgress)
                     .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeLineWidth, lineCap: .round))
+                    .opacity(gaugeOpacity)
                     .padding(7)
                     .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.05), value: gaugeProgress)
 
                 Circle()
                     .fill(pointerColor)
@@ -95,7 +95,7 @@ struct CircularKnob: View {
                     .shadow(color: pointerColor.opacity(0.6), radius: 4)
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
-                    .animation(dragAngle == nil ? .smooth(duration: 0.15) : nil, value: pointerAngle)
+                    .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
             }
             .contentShape(Circle())
             .gesture(
@@ -120,7 +120,8 @@ struct CircularKnob: View {
                         let normalized = targetAngle / 360.0
                         let rawValue = range.lowerBound + normalized * (range.upperBound - range.lowerBound)
                         let snappedValue = (rawValue / step).rounded() * step
-                        value = min(range.upperBound, max(range.lowerBound, snappedValue))
+                        let clampedValue = min(range.upperBound, max(range.lowerBound, snappedValue))
+                        if clampedValue != value { value = clampedValue }
                     }
                     .onEnded { _ in
                         dragAngle = nil
