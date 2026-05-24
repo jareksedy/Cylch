@@ -59,16 +59,21 @@ struct SettingsView: View {
         } detail: {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 18) {
-                    circularSliderCard(
+                    KnobCard(
                         title: "Brightness",
-                        value: $viewModel.brightness,
-                        formattedValue: "\(Int(viewModel.brightness))%"
+                        initial: viewModel.brightness,
+                        gaugeStyle: .rainbow,
+                        formatter: { "\(Int($0))%" },
+                        onLiveUpdate: { viewModel.pushBrightnessLive($0) },
+                        onCommit: { viewModel.commitBrightness($0) }
                     )
-                    circularSliderCard(
+                    KnobCard(
                         title: "Speed",
-                        value: $viewModel.speed,
-                        formattedValue: "\(Int(viewModel.speed))",
-                        gaugeStyle: .solid(.accentColor)
+                        initial: viewModel.speed,
+                        gaugeStyle: .solid(.accentColor),
+                        formatter: { "\(Int($0))" },
+                        onLiveUpdate: { viewModel.pushSpeedLive($0) },
+                        onCommit: { viewModel.commitSpeed($0) }
                     )
                 }
 
@@ -156,23 +161,56 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, gaugeStyle: CircularKnob.GaugeStyle = .rainbow, disabled: Bool = false) -> some View {
+}
+
+private struct KnobCard: View {
+    let title: String
+    let gaugeStyle: CircularKnob.GaugeStyle
+    let formatter: (Double) -> String
+    let onLiveUpdate: (Double) -> Void
+    let onCommit: (Double) -> Void
+    var disabled: Bool = false
+
+    @State private var value: Double
+
+    init(
+        title: String,
+        initial: Double,
+        gaugeStyle: CircularKnob.GaugeStyle = .rainbow,
+        formatter: @escaping (Double) -> String,
+        onLiveUpdate: @escaping (Double) -> Void,
+        onCommit: @escaping (Double) -> Void,
+        disabled: Bool = false
+    ) {
+        self.title = title
+        self._value = State(initialValue: initial)
+        self.gaugeStyle = gaugeStyle
+        self.formatter = formatter
+        self.onLiveUpdate = onLiveUpdate
+        self.onCommit = onCommit
+        self.disabled = disabled
+    }
+
+    var body: some View {
         VStack(spacing: 6) {
             HStack {
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(formattedValue)
+                Text(formatter(value))
                     .font(.system(.caption, design: .monospaced))
                     .monospacedDigit()
             }
 
-            CircularKnob(value: value, gaugeStyle: gaugeStyle)
+            CircularKnob(value: $value, gaugeStyle: gaugeStyle, onEditingEnded: { onCommit(value) })
                 .frame(width: 104, height: 104)
                 .disabled(disabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: value) { _, newValue in
+            onLiveUpdate(newValue)
+        }
     }
 }
 
@@ -180,11 +218,30 @@ struct SettingsView: View {
 final class SettingsViewModel: ObservableObject {
     static let shared = SettingsViewModel()
 
-    @Published var brightness: Double = 75 {
-        didSet { pushConfig() }
+    @Published var brightness: Double = 75
+    @Published var speed: Double = 25
+
+    private var liveBrightness: Double = 75
+    private var liveSpeed: Double = 25
+
+    func pushBrightnessLive(_ value: Double) {
+        liveBrightness = value
+        pushConfig()
     }
-    @Published var speed: Double = 25 {
-        didSet { pushConfig() }
+
+    func commitBrightness(_ value: Double) {
+        liveBrightness = value
+        brightness = value
+    }
+
+    func pushSpeedLive(_ value: Double) {
+        liveSpeed = value
+        pushConfig()
+    }
+
+    func commitSpeed(_ value: Double) {
+        liveSpeed = value
+        speed = value
     }
     @Published var ledCount: Int = 65 {
         didSet {
@@ -254,7 +311,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private var currentConfig: StreamConfig {
-        StreamConfig(brightness: brightness, speed: speed, ledCount: ledCount, effect: selectedEffect)
+        StreamConfig(brightness: liveBrightness, speed: liveSpeed, ledCount: ledCount, effect: selectedEffect)
     }
 
     private static func discoverSerialPorts() -> [String] {
@@ -312,7 +369,7 @@ final class AdalightController {
             await configStore.set(initialConfig)
         }
 
-        streamTask = Task.detached(priority: .userInitiated) { [weak self] in
+        streamTask = Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             await self.runLoop(port: port)
         }
@@ -376,6 +433,8 @@ final class AdalightController {
                 } catch {
                     break
                 }
+            } else {
+                await Task.yield()
             }
         }
     }

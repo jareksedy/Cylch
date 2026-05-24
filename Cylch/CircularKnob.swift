@@ -13,6 +13,7 @@ struct CircularKnob: View {
     var trackLineWidth: CGFloat = 3
     var trackOpacity: Double = 0.15
     var scrollSensitivity: Double = 0.05
+    var onEditingEnded: (() -> Void)?
 
     enum GaugeStyle {
         case rainbow
@@ -129,6 +130,7 @@ struct CircularKnob: View {
                     }
                     .onEnded { _ in
                         dragAngle = nil
+                        onEditingEnded?()
                     }
             )
             .background(
@@ -138,6 +140,7 @@ struct CircularKnob: View {
                     withAnimation(.smooth(duration: 0.15)) {
                         value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
                     }
+                    onEditingEnded?()
                 }
             )
         }
