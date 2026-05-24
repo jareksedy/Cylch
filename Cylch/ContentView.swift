@@ -369,7 +369,7 @@ final class AdalightController {
             await configStore.set(initialConfig)
         }
 
-        streamTask = Task.detached(priority: .utility) { [weak self] in
+        streamTask = Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
             await self.runLoop(port: port)
         }
