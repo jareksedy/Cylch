@@ -6,14 +6,7 @@ struct CircularKnob: View {
     var step: Double = 1
     var gaugeStyle: GaugeStyle = .rainbow
     var pointerColor: Color = .accentColor
-    var gaugeLineWidth: CGFloat = 2
-    var gaugeGlowRadius: CGFloat = 4
-    var gaugeGlowOpacity: Double = 0.5
-    var gaugeMinOpacity: Double = 0.1
-    var trackLineWidth: CGFloat = 3
-    var trackOpacity: Double = 0.15
     var scrollSensitivity: Double = 0.05
-    var onEditingEnded: (() -> Void)?
 
     enum GaugeStyle {
         case rainbow
@@ -44,10 +37,6 @@ struct CircularKnob: View {
         }
     }
 
-    private var gaugeOpacity: Double {
-        gaugeMinOpacity + (1 - gaugeMinOpacity) * normalizedValue
-    }
-
     var body: some View {
         GeometryReader { proxy in
             let size = min(proxy.size.width, proxy.size.height)
@@ -58,35 +47,21 @@ struct CircularKnob: View {
             let gaugeProgress = pointerAngle / 360
 
             let isDark = colorScheme == .dark
-            let baseColor = isDark ? Color(white: 0.16) : Color(white: 0.88)
-            let lightShadow = isDark ? Color(white: 0.28) : Color.white
-            let darkShadow = isDark ? Color.black : Color(white: 0.55)
+            let trackColor = (isDark ? Color.white : Color.black).opacity(0.1)
+            let knobFill = trackColor
 
             ZStack {
-                StaticKnobChrome(
-                    isDark: isDark,
-                    baseColor: baseColor,
-                    lightShadow: lightShadow,
-                    darkShadow: darkShadow,
-                    trackOpacity: trackOpacity,
-                    trackLineWidth: trackLineWidth,
-                    knobInset: knobInset
-                )
-                .drawingGroup()
+                Circle()
+                    .fill(knobFill)
+                    .padding(knobInset)
 
                 Circle()
-                    .trim(from: 0, to: gaugeProgress)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeLineWidth * 2, lineCap: .round))
-                    .blur(radius: gaugeGlowRadius)
-                    .opacity(gaugeGlowOpacity * gaugeOpacity)
+                    .stroke(trackColor, lineWidth: 2)
                     .padding(7)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.05), value: gaugeProgress)
 
                 Circle()
                     .trim(from: 0, to: gaugeProgress)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeLineWidth, lineCap: .round))
-                    .opacity(gaugeOpacity)
+                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .padding(7)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.05), value: gaugeProgress)
@@ -94,7 +69,6 @@ struct CircularKnob: View {
                 Circle()
                     .fill(pointerColor)
                     .frame(width: 5, height: 5)
-                    .shadow(color: pointerColor.opacity(0.6), radius: 4)
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
@@ -130,7 +104,6 @@ struct CircularKnob: View {
                     }
                     .onEnded { _ in
                         dragAngle = nil
-                        onEditingEnded?()
                     }
             )
             .background(
@@ -140,7 +113,6 @@ struct CircularKnob: View {
                     withAnimation(.smooth(duration: 0.15)) {
                         value = min(range.upperBound, max(range.lowerBound, (newValue / step).rounded() * step))
                     }
-                    onEditingEnded?()
                 }
             )
         }
@@ -149,54 +121,6 @@ struct CircularKnob: View {
     private func projectedAngle(_ rawAngle: Double, near currentAngle: Double) -> Double {
         let candidates = [rawAngle - 360, rawAngle, rawAngle + 360]
         return candidates.min(by: { abs($0 - currentAngle) < abs($1 - currentAngle) }) ?? rawAngle
-    }
-}
-
-private struct StaticKnobChrome: View {
-    let isDark: Bool
-    let baseColor: Color
-    let lightShadow: Color
-    let darkShadow: Color
-    let trackOpacity: Double
-    let trackLineWidth: CGFloat
-    let knobInset: CGFloat
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(baseColor)
-                .overlay(
-                    Circle()
-                        .stroke(darkShadow.opacity(0.6), lineWidth: 6)
-                        .blur(radius: 5)
-                        .clipShape(Circle())
-                )
-                .overlay(
-                    Circle()
-                        .stroke(lightShadow.opacity(0.15), lineWidth: 6)
-                        .blur(radius: 5)
-                        .clipShape(Circle())
-                )
-
-            Circle()
-                .stroke(darkShadow.opacity(trackOpacity), lineWidth: trackLineWidth)
-                .blur(radius: 0.5)
-                .padding(7)
-
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: isDark
-                            ? [Color(white: 0.22), Color(white: 0.16)]
-                            : [Color(white: 0.94), Color(white: 0.86)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: lightShadow.opacity(0.18), radius: 5, x: 0, y: 0)
-                .shadow(color: darkShadow.opacity(0.6), radius: 5, x: 0, y: 0)
-                .padding(knobInset)
-        }
     }
 }
 
