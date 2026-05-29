@@ -72,6 +72,10 @@ struct CircularKnob: View {
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
+
+                Text("\(Int(normalizedValue * 100))%")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(Color.primary.opacity(0.25))
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
