@@ -47,8 +47,9 @@ struct CircularKnob: View {
             let gaugeProgress = pointerAngle / 360
 
             let isDark = colorScheme == .dark
-            let trackColor = (isDark ? Color.white : Color.black).opacity(0.1)
-            let knobFill = trackColor
+            let knobBase = isDark ? Color.white : Color.black
+            let knobFill = knobBase.opacity(0.1)
+            let trackColor = Color.black.opacity(0.25)
 
             ZStack {
                 Circle()
