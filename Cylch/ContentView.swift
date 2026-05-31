@@ -61,13 +61,11 @@ struct SettingsView: View {
                 HStack(spacing: 18) {
                     circularSliderCard(
                         title: "Brightness",
-                        value: $viewModel.brightness,
-                        formattedValue: "\(Int(viewModel.brightness))%"
+                        value: $viewModel.brightness
                     )
                     circularSliderCard(
                         title: "Speed",
                         value: $viewModel.speed,
-                        formattedValue: "\(Int(viewModel.speed))",
                         gaugeStyle: .solid(.accentColor)
                     )
                 }
@@ -156,22 +154,17 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, formattedValue: String, gaugeStyle: CircularKnob.GaugeStyle = .rainbow) -> some View {
-        VStack(spacing: 6) {
-            HStack {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(formattedValue)
-                    .font(.system(.caption, design: .monospaced))
-                    .monospacedDigit()
-            }
+    private func circularSliderCard(title: String, value: Binding<Double>, gaugeStyle: CircularKnob.GaugeStyle = .rainbow) -> some View {
+        VStack(spacing: 10) {
+            Text(title)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
             CircularKnob(value: value, gaugeStyle: gaugeStyle)
-                .frame(width: 104, height: 104)
+                .frame(width: 180, height: 180)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
     }
 }
 

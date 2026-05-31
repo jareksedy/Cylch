@@ -41,15 +41,15 @@ struct CircularKnob: View {
         GeometryReader { proxy in
             let size = min(proxy.size.width, proxy.size.height)
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-            let knobInset = size * 0.15
+            let knobInset: CGFloat = 2
             let knobRadius = (size / 2) - knobInset
             let pointerAngle = dragAngle ?? (normalizedValue * 360)
             let gaugeProgress = pointerAngle / 360
 
             let isDark = colorScheme == .dark
             let knobBase = isDark ? Color.white : Color.black
-            let knobFill = knobBase.opacity(0.1)
-            let trackColor = Color.black.opacity(0.25)
+            let knobFill = knobBase.opacity(0.075)
+            let trackColor = Color.black.opacity(0.35)
 
             ZStack {
                 Circle()
