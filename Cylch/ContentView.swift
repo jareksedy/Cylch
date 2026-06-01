@@ -58,7 +58,7 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(160)
         } detail: {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 18) {
+                HStack(spacing: 20) {
                     circularSliderCard(
                         title: "Brightness",
                         value: $viewModel.brightness
@@ -162,7 +162,7 @@ struct SettingsView: View {
                 .textCase(.uppercase)
 
             CircularKnob(value: value, gaugeStyle: gaugeStyle)
-                .frame(width: 180, height: 180)
+                .frame(width: 140, height: 140)
         }
         .frame(maxWidth: .infinity)
     }
