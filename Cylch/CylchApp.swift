@@ -6,9 +6,20 @@
 //
 
 import SwiftUI
+import AppKit
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            SettingsViewModel.shared.autoConnectOnLaunch()
+        }
+    }
+}
 
 @main
 struct CylchApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
         MenuBarExtra("Cylch", systemImage: "circlebadge.fill") {
             MenuBarView()
@@ -17,6 +28,6 @@ struct CylchApp: App {
         Window("Settings", id: "settings") {
             SettingsView()
         }
-        .defaultSize(width: 670, height: 380)
+        .defaultSize(width: 420, height: 330)
     }
 }

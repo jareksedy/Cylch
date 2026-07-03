@@ -11,21 +11,33 @@ import Darwin
 import Combine
 
 enum LEDEffect: String, CaseIterable, Identifiable {
-    case rainbow = "Rainbow"
     case `static` = "Static"
-    case breathe = "Breathe"
-    case pulse = "Pulse"
+    case rainbow = "Rainbow"
 
     var id: String { rawValue }
+}
 
-    var iconName: String {
-        switch self {
-        case .rainbow: "rainbow"
-        case .static: "circle.fill"
-        case .breathe: "wind"
-        case .pulse: "waveform.path"
-        }
+struct LEDColor: Identifiable, Equatable, Sendable {
+    let name: String
+    let red: UInt8
+    let green: UInt8
+    let blue: UInt8
+
+    var id: String { name }
+    var color: Color {
+        Color(red: Double(red) / 255, green: Double(green) / 255, blue: Double(blue) / 255)
     }
+
+    static let palette: [LEDColor] = [
+        LEDColor(name: "Red", red: 255, green: 0, blue: 0),
+        LEDColor(name: "Orange", red: 255, green: 96, blue: 0),
+        LEDColor(name: "Yellow", red: 255, green: 210, blue: 0),
+        LEDColor(name: "Green", red: 0, green: 255, blue: 80),
+        LEDColor(name: "Cyan", red: 0, green: 220, blue: 255),
+        LEDColor(name: "Blue", red: 0, green: 90, blue: 255),
+        LEDColor(name: "Purple", red: 170, green: 70, blue: 255),
+        LEDColor(name: "White", red: 255, green: 255, blue: 255)
+    ]
 }
 
 struct MenuBarView: View {
@@ -49,123 +61,208 @@ struct MenuBarView: View {
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
+    @Namespace private var pickerNamespace
+    @State private var showSettingsPopover = false
 
     var body: some View {
-        NavigationSplitView {
-            List(LEDEffect.allCases, selection: $viewModel.selectedEffect) { effect in
-                Label(effect.rawValue, systemImage: effect.iconName)
-            }
-            .navigationSplitViewColumnWidth(160)
-        } detail: {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 20) {
-                    circularSliderCard(
-                        title: "Brightness",
-                        value: $viewModel.brightness
-                    )
-                    circularSliderCard(
-                        title: "Speed",
-                        value: $viewModel.speed,
-                        gaugeStyle: .solid(.accentColor)
-                    )
-                }
+        VStack(spacing: 28) {
+            effectPicker
+                .frame(width: 320, height: 36)
 
-                statusLine
+            transportRow
 
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Spacer(minLength: 0)
-
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Text("Serial Port")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Refresh") {
-                                viewModel.refreshPorts()
-                            }
-                            .buttonStyle(.link)
-                            .font(.caption)
-                        }
-
-                        Picker("Serial Port", selection: $viewModel.selectedPort) {
-                            ForEach(viewModel.availablePorts, id: \.self) { port in
-                                Text(port).tag(port)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 260)
-                        .disabled(viewModel.connected)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("LEDs")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Stepper(value: $viewModel.ledCount, in: 1...300) {
-                            Text("\(viewModel.ledCount)")
-                                .monospacedDigit()
-                                .frame(width: 40, alignment: .leading)
-                        }
-                        .frame(width: 120)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Button(viewModel.connected ? "Disconnect" : "Connect") {
-                        viewModel.toggleConnection()
-                    }
-                    .controlSize(.regular)
-                    .disabled(viewModel.selectedPort.isEmpty)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            colorPalette
+                .frame(width: 320, height: 36)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 32)
+        .font(.system(size: 13, design: .monospaced))
         .onAppear {
             viewModel.onAppear()
         }
-    }
-
-    private var statusLine: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(viewModel.connected ? .green : .secondary)
-                .frame(width: 7, height: 7)
-
-            Text(viewModel.connected ? "Streaming \(viewModel.selectedEffect.rawValue.lowercased())" : "Idle")
-            Text("•")
-            Text("\(viewModel.ledCount) LEDs")
-            Text("•")
-            Text("\(Int(viewModel.brightness))% bright")
-            Text("•")
-            Text("speed \(Int(viewModel.speed))")
-
-            Spacer(minLength: 0)
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    showSettingsPopover.toggle()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .help("Settings")
+                .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
+                    settingsPopover
+                }
+            }
         }
-        .font(.system(size: 11, weight: .regular, design: .monospaced))
-        .foregroundStyle(.secondary)
     }
 
-    private func circularSliderCard(title: String, value: Binding<Double>, gaugeStyle: CircularKnob.GaugeStyle = .rainbow) -> some View {
-        VStack(spacing: 10) {
-            Text(title)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+    private var effectPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(LEDEffect.allCases) { effect in
+                let isSelected = viewModel.selectedEffect == effect
 
-            CircularKnob(value: value, gaugeStyle: gaugeStyle)
+                Button {
+                    withAnimation(.smooth(duration: 0.25)) {
+                        viewModel.selectedEffect = effect
+                    }
+                } label: {
+                    Text(effect.rawValue)
+                        .font(.system(size: 14, weight: isSelected ? .medium : .regular))
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .background {
+                    if isSelected {
+                        Capsule()
+                            .fill(Color.primary.opacity(0.08))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                            )
+                            .matchedGeometryEffect(id: "selectedEffect", in: pickerNamespace)
+                    }
+                }
+            }
+        }
+        .background(Capsule().fill(Color.primary.opacity(0.04)))
+    }
+
+    private var transportRow: some View {
+        HStack(spacing: 44) {
+            CircularKnob(value: $viewModel.brightness)
                 .frame(width: 140, height: 140)
+                .help("Brightness")
+
+            CircularKnob(value: $viewModel.speed, gaugeStyle: .solid(.accentColor))
+                .frame(width: 140, height: 140)
+                .disabled(viewModel.selectedEffect == .static)
+                .help("Speed")
         }
-        .frame(maxWidth: .infinity)
     }
+
+    private var colorPalette: some View {
+        HStack(spacing: 0) {
+            ForEach(LEDColor.palette) { ledColor in
+                let isSelected = viewModel.staticColor == ledColor
+
+                Button {
+                    withAnimation(.smooth(duration: 0.25)) {
+                        viewModel.staticColor = ledColor
+                    }
+                } label: {
+                    Circle()
+                        .fill(ledColor.color)
+                        .frame(width: isSelected ? 22 : 18, height: isSelected ? 22 : 18)
+                        .overlay(
+                            Circle()
+                                .stroke(isSelected ? ledColor.color : Color.primary.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+                        )
+                        .overlay {
+                            if isSelected {
+                                Circle()
+                                    .stroke(ledColor.color.opacity(0.28), lineWidth: 5)
+                                    .padding(-3)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.selectedEffect == .rainbow)
+                .help(ledColor.name)
+            }
+        }
+        .background(Capsule().fill(Color.primary.opacity(0.04)))
+        .opacity(viewModel.selectedEffect == .rainbow ? 0.45 : 1)
+        .saturation(viewModel.selectedEffect == .rainbow ? 0.25 : 1)
+    }
+
+    private var settingsPopover: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            settingsSection("Connection") {
+                connectionSettings
+            }
+
+            Divider()
+
+            settingsSection("Schedule") {
+                scheduleSettings
+            }
+        }
+        .font(.system(size: 13, design: .monospaced))
+        .padding(16)
+        .frame(width: 300, alignment: .leading)
+    }
+
+    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            content()
+        }
+    }
+
+    private var scheduleSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
+
+            DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
+                .disabled(!viewModel.scheduleEnabled)
+
+            DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
+                .disabled(!viewModel.scheduleEnabled)
+
+            Text(viewModel.scheduleSummary)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var connectionSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text("Serial Port")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Button("Refresh") {
+                        viewModel.refreshPorts()
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 11, design: .monospaced))
+                }
+
+                Picker("Serial Port", selection: $viewModel.selectedPort) {
+                    ForEach(viewModel.availablePorts, id: \.self) { port in
+                        Text(port).tag(port)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 260)
+                .disabled(viewModel.connected)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("LEDs")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Stepper(value: $viewModel.ledCount, in: 1...300) {
+                    Text("\(viewModel.ledCount)")
+                        .font(.system(size: 13, design: .monospaced))
+                        .frame(width: 40, alignment: .leading)
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    SettingsView()
+        .frame(width: 420, height: 330)
 }
 
 @MainActor
@@ -188,13 +285,37 @@ final class SettingsViewModel: ObservableObject {
             pushConfig()
         }
     }
-    @Published var selectedEffect: LEDEffect = .rainbow
+    @Published var selectedEffect: LEDEffect = .rainbow {
+        didSet { pushConfig() }
+    }
+    @Published var staticColor: LEDColor = LEDColor.palette[0] {
+        didSet { pushConfig() }
+    }
+    @Published var paused: Bool = false {
+        didSet { pushConfig() }
+    }
     @Published var selectedPort: String = ""
     @Published var connected: Bool = false
     @Published var availablePorts: [String] = []
     @Published var errorMessage: String?
+    @Published var scheduleEnabled: Bool = false {
+        didSet { updateScheduleState() }
+    }
+    @Published var scheduleStartTime: Date = SettingsViewModel.timeToday(hour: 23, minute: 0) {
+        didSet { updateScheduleState() }
+    }
+    @Published var scheduleEndTime: Date = SettingsViewModel.timeToday(hour: 7, minute: 0) {
+        didSet { updateScheduleState() }
+    }
+    @Published private(set) var scheduleActive: Bool = false
+
+    var scheduleSummary: String {
+        guard scheduleEnabled else { return "Schedule is off" }
+        return scheduleActive ? "LEDs are off until schedule ends" : "LEDs stay on until scheduled off time"
+    }
 
     private let controller = AdalightController()
+    private var scheduleTask: Task<Void, Never>?
 
     init() {
         controller.onConnectedChanged = { [weak self] isConnected in
@@ -212,6 +333,7 @@ final class SettingsViewModel: ObservableObject {
 
     func onAppear() {
         refreshPorts()
+        startScheduleMonitor()
         pushConfig()
     }
 
@@ -220,23 +342,48 @@ final class SettingsViewModel: ObservableObject {
         availablePorts = ports
 
         if selectedPort.isEmpty || !ports.contains(selectedPort) {
-            selectedPort = ports.first ?? ""
+            selectedPort = Self.preferredPort(in: ports) ?? ports.first ?? ""
         }
     }
 
-    func toggleConnection() {
-        if connected {
-            controller.stop()
+    /// Called once at launch: discovers ports and, if a USB serial adapter is
+    /// present, selects it and starts streaming automatically.
+    func autoConnectOnLaunch() {
+        refreshPorts()
+        pushConfig()
+
+        guard !connected,
+              let usbSerialPort = Self.preferredPort(in: availablePorts) else {
             return
         }
 
+        selectedPort = usbSerialPort
+        connect()
+    }
+
+    func playPause() {
+        if connected {
+            paused.toggle()
+            return
+        }
+
+        connect()
+    }
+
+    private func connect() {
         guard !selectedPort.isEmpty else {
             errorMessage = "No serial port selected."
             return
         }
 
         errorMessage = nil
+        paused = false
         controller.start(port: selectedPort, initialConfig: currentConfig)
+    }
+
+    func stopStreaming() {
+        controller.stop()
+        paused = false
     }
 
     private func pushConfig() {
@@ -244,25 +391,87 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private var currentConfig: StreamConfig {
-        StreamConfig(brightness: brightness, speed: speed, ledCount: ledCount)
+        StreamConfig(effect: selectedEffect, staticColor: staticColor, brightness: brightness, speed: speed, ledCount: ledCount, paused: paused, lightsOff: scheduleActive)
+    }
+
+    private func startScheduleMonitor() {
+        guard scheduleTask == nil else { return }
+        updateScheduleState()
+
+        scheduleTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                self?.updateScheduleState()
+            }
+        }
+    }
+
+    private func updateScheduleState(now: Date = Date()) {
+        let isActive = scheduleEnabled && Self.isTime(now, inQuietHoursFrom: scheduleStartTime, until: scheduleEndTime)
+        guard scheduleActive != isActive else { return }
+        scheduleActive = isActive
+        pushConfig()
+    }
+
+    private static func isTime(_ date: Date, inQuietHoursFrom startDate: Date, until endDate: Date) -> Bool {
+        let calendar = Calendar.current
+        let currentMinute = minuteOfDay(from: date, calendar: calendar)
+        let startMinute = minuteOfDay(from: startDate, calendar: calendar)
+        let endMinute = minuteOfDay(from: endDate, calendar: calendar)
+
+        guard startMinute != endMinute else { return false }
+        if startMinute < endMinute {
+            return currentMinute >= startMinute && currentMinute < endMinute
+        }
+
+        return currentMinute >= startMinute || currentMinute < endMinute
+    }
+
+    private static func minuteOfDay(from date: Date, calendar: Calendar) -> Int {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    }
+
+    private static func timeToday(hour: Int, minute: Int) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+    }
+
+    /// Prefers a USB serial adapter (e.g. `/dev/cu.usbserial-XXXX`) when present.
+    private static func preferredPort(in ports: [String]) -> String? {
+        ports.first { $0.localizedCaseInsensitiveContains("usbserial") }
     }
 
     private static func discoverSerialPorts() -> [String] {
-        guard let deviceEntries = try? FileManager.default.contentsOfDirectory(atPath: "/dev") else {
+        guard let directory = opendir("/dev") else {
             return []
         }
+        defer { closedir(directory) }
 
-        return deviceEntries
-            .filter { $0.hasPrefix("cu.") }
-            .map { "/dev/\($0)" }
-            .sorted()
+        var ports: [String] = []
+        while let entry = readdir(directory) {
+            let name = withUnsafePointer(to: &entry.pointee.d_name) { pointer in
+                pointer.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN)) {
+                    String(cString: $0)
+                }
+            }
+
+            if name.hasPrefix("cu.") {
+                ports.append("/dev/\(name)")
+            }
+        }
+
+        return ports.sorted()
     }
 }
 
 struct StreamConfig: Sendable {
+    var effect: LEDEffect = .rainbow
+    var staticColor: LEDColor = LEDColor.palette[0]
     var brightness: Double
     var speed: Double
     var ledCount: Int
+    var paused: Bool = false
+    var lightsOff: Bool = false
 }
 
 actor StreamConfigStore {
@@ -339,7 +548,11 @@ final class AdalightController {
             onConnectedChanged?(true)
         }
 
+        var lastLEDCount = 65
+
         defer {
+            let blankConfig = StreamConfig(brightness: 0, speed: 0, ledCount: lastLEDCount)
+            writeAll(makeFrame(config: blankConfig, gradientOffset: 0), to: fd)
             close(fd)
             Task { @MainActor in
                 onConnectedChanged?(false)
@@ -350,15 +563,19 @@ final class AdalightController {
 
         while !Task.isCancelled {
             let config = await configStore.get()
+            lastLEDCount = max(1, min(300, config.ledCount))
+
             let frame = makeFrame(config: config, gradientOffset: gradientOffset)
             writeAll(frame, to: fd)
 
-            gradientOffset = positiveModulo(
-                gradientOffset + rgbCircleStep(for: config.speed),
-                Double(max(min(300, config.ledCount), 1))
-            )
+            if !config.paused && config.effect == .rainbow {
+                gradientOffset = positiveModulo(
+                    gradientOffset + rgbCircleStep(for: config.speed),
+                    Double(max(min(300, config.ledCount), 1))
+                )
+            }
 
-            let delay = frameDelayNanoseconds(for: config.speed)
+            let delay = config.paused ? 25_000_000 : frameDelayNanoseconds(for: config.speed)
             if delay > 0 {
                 do {
                     try await Task.sleep(nanoseconds: delay)
@@ -399,23 +616,32 @@ final class AdalightController {
         var frame = header
         frame.reserveCapacity(header.count + outputLEDCount * 3)
 
-        let brightnessScale = max(0.0, min(100.0, config.brightness)) / 100.0
+        let brightnessScale = config.lightsOff ? 0.0 : max(0.0, min(100.0, config.brightness)) / 100.0
 
         for index in 0 ..< outputLEDCount {
-            let (redBase, greenBase, blueBase) = rgbCircleGradientColor(
-                physicalIndex: index % physicalLEDCount,
-                physicalLEDCount: physicalLEDCount,
-                offset: gradientOffset
-            )
-
-            let red = clampByte(Double(redBase) * brightnessScale)
-            let green = clampByte(Double(greenBase) * brightnessScale)
-            let blue = clampByte(Double(blueBase) * brightnessScale)
+            let color = colorForPixel(index: index, physicalLEDCount: physicalLEDCount, config: config, gradientOffset: gradientOffset)
+            let red = clampByte(Double(color.red) * brightnessScale)
+            let green = clampByte(Double(color.green) * brightnessScale)
+            let blue = clampByte(Double(color.blue) * brightnessScale)
 
             frame += [red, green, blue]
         }
 
         return frame
+    }
+
+    private func colorForPixel(index: Int, physicalLEDCount: Int, config: StreamConfig, gradientOffset: Double) -> LEDColor {
+        switch config.effect {
+        case .static:
+            return config.staticColor
+        case .rainbow:
+            let (red, green, blue) = rgbCircleGradientColor(
+                physicalIndex: index % physicalLEDCount,
+                physicalLEDCount: physicalLEDCount,
+                offset: gradientOffset
+            )
+            return LEDColor(name: "Rainbow", red: red, green: green, blue: blue)
+        }
     }
 
     private func frameDelayNanoseconds(for speed: Double) -> UInt64 {
