@@ -15,6 +15,15 @@ enum LEDEffect: String, CaseIterable, Identifiable {
     case rainbow = "Rainbow"
 
     var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .static:
+            "static"
+        case .rainbow:
+            "rainbow"
+        }
+    }
 }
 
 struct LEDColor: Identifiable, Equatable, Sendable {
@@ -85,7 +94,10 @@ struct SettingsView: View {
                 Button {
                     showSettingsPopover.toggle()
                 } label: {
-                    Image(systemName: "gearshape")
+                    Image("settings")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
                 }
                 .help("Settings")
                 .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
@@ -105,12 +117,20 @@ struct SettingsView: View {
                         viewModel.selectedEffect = effect
                     }
                 } label: {
-                    Text(effect.rawValue)
-                        .font(.system(size: 14, weight: isSelected ? .medium : .regular))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .contentShape(Capsule())
+                    HStack(spacing: 7) {
+                        Image(effect.iconName)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 14, height: 14)
+
+                        Text(effect.rawValue)
+                            .font(.system(size: 14, weight: isSelected ? .medium : .regular))
+                    }
+                    .offset(x: -3)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .background {
@@ -182,8 +202,10 @@ struct SettingsView: View {
     private var settingsPopover: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 15, weight: .medium))
+                Image("settings")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 15, height: 15)
                     .foregroundStyle(.secondary)
 
                 Text("Settings")
