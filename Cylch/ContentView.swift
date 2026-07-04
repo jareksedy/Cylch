@@ -214,6 +214,10 @@ struct SettingsView: View {
                 .help(ledColor.name)
             }
         }
+        // Slightly widen the row beyond the capsule so the first and last
+        // swatches sit as close to the rounded ends as they do to the top
+        // and bottom edges.
+        .padding(.horizontal, -2)
         .background(Capsule().fill(Color.primary.opacity(0.04)))
         .opacity(viewModel.selectedEffect == .rainbow ? 0.45 : 1)
         .saturation(viewModel.selectedEffect == .rainbow ? 0.25 : 1)
