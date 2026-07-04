@@ -30,12 +30,12 @@ struct LEDColor: Identifiable, Equatable, Sendable {
 
     static let palette: [LEDColor] = [
         LEDColor(name: "Red", red: 255, green: 0, blue: 0),
-        LEDColor(name: "Orange", red: 255, green: 96, blue: 0),
-        LEDColor(name: "Yellow", red: 255, green: 210, blue: 0),
-        LEDColor(name: "Green", red: 0, green: 255, blue: 80),
-        LEDColor(name: "Cyan", red: 0, green: 220, blue: 255),
-        LEDColor(name: "Blue", red: 0, green: 90, blue: 255),
-        LEDColor(name: "Purple", red: 170, green: 70, blue: 255),
+        LEDColor(name: "Orange", red: 255, green: 100, blue: 0),
+        LEDColor(name: "Yellow", red: 255, green: 255, blue: 0),
+        LEDColor(name: "Green", red: 0, green: 255, blue: 0),
+        LEDColor(name: "Cyan", red: 0, green: 255, blue: 255),
+        LEDColor(name: "Blue", red: 0, green: 0, blue: 255),
+        LEDColor(name: "Purple", red: 255, green: 0, blue: 255),
         LEDColor(name: "White", red: 255, green: 255, blue: 255)
     ]
 }
@@ -180,83 +180,127 @@ struct SettingsView: View {
     }
 
     private var settingsPopover: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            settingsSection("Connection") {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text("Settings")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+
+            Divider()
+
+            settingsSection(title: "Connection", systemName: "cable.connector") {
                 connectionSettings
             }
 
             Divider()
 
-            settingsSection("Schedule") {
+            settingsSection(title: "Schedule", systemName: "moon") {
                 scheduleSettings
             }
         }
-        .font(.system(size: 13, design: .monospaced))
-        .padding(16)
-        .frame(width: 300, alignment: .leading)
+        .font(.system(size: 13))
+        .frame(width: 340, alignment: .leading)
     }
 
-    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
+    private func settingsSection<Content: View>(title: String, systemName: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 7) {
+                Image(systemName: systemName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             content()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var scheduleSettings: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
+        VStack(alignment: .leading, spacing: 10) {
+            settingsRow(label: "Night") {
+                Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
+                    .labelsHidden()
+            }
 
-            DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
-                .disabled(!viewModel.scheduleEnabled)
+            settingsRow(label: "From") {
+                DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .disabled(!viewModel.scheduleEnabled)
+            }
 
-            DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
-                .disabled(!viewModel.scheduleEnabled)
+            settingsRow(label: "Until") {
+                DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .disabled(!viewModel.scheduleEnabled)
+            }
 
             Text(viewModel.scheduleSummary)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
         }
     }
 
     private var connectionSettings: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsRow(label: "Port") {
                 HStack(spacing: 8) {
-                    Text("Serial Port")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Button("Refresh") {
-                        viewModel.refreshPorts()
+                    Picker("Serial Port", selection: $viewModel.selectedPort) {
+                        ForEach(viewModel.availablePorts, id: \.self) { port in
+                            Text(port).tag(port)
+                        }
                     }
-                    .buttonStyle(.link)
-                    .font(.system(size: 11, design: .monospaced))
-                }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .disabled(viewModel.connected)
 
-                Picker("Serial Port", selection: $viewModel.selectedPort) {
-                    ForEach(viewModel.availablePorts, id: \.self) { port in
-                        Text(port).tag(port)
+                    Button {
+                        viewModel.refreshPorts()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
                     }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 12, weight: .medium))
+                    .help("Refresh ports")
                 }
-                .labelsHidden()
-                .frame(width: 260)
-                .disabled(viewModel.connected)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("LEDs")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+            settingsRow(label: "LEDs") {
                 Stepper(value: $viewModel.ledCount, in: 1...300) {
                     Text("\(viewModel.ledCount)")
-                        .font(.system(size: 13, design: .monospaced))
-                        .frame(width: 40, alignment: .leading)
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                        .frame(width: 44, alignment: .leading)
                 }
             }
         }
+    }
+
+    private func settingsRow<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .leading)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 28)
     }
 }
 
