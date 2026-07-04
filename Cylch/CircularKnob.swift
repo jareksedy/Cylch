@@ -46,24 +46,30 @@ struct CircularKnob: View {
             let pointerAngle = dragAngle ?? (normalizedValue * 360)
             let gaugeProgress = pointerAngle / 360
 
-            let isDark = colorScheme == .dark
-            let knobBase = isDark ? Color.white : Color.black
-            let knobFill = knobBase.opacity(0.075)
-            let trackColor = Color.black.opacity(0.35)
+            let trackColor = Color.black.opacity(0.28)
+            let trackWidth: CGFloat = 3
+            let gaugeWidth: CGFloat = 3
+            let trackPadding: CGFloat = 8
 
             ZStack {
+                // Flat body, tinted like the palette and picker capsules,
+                // outlined like the picker's selected segment.
                 Circle()
-                    .fill(knobFill)
+                    .fill(Color.primary.opacity(0.04))
+                    .overlay(
+                        Circle()
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                    )
                     .padding(knobInset)
 
                 Circle()
-                    .stroke(trackColor, lineWidth: 2)
-                    .padding(7)
+                    .stroke(trackColor, lineWidth: trackWidth)
+                    .padding(trackPadding)
 
                 Circle()
                     .trim(from: 0, to: gaugeProgress)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .padding(7)
+                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
+                    .padding(trackPadding)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.05), value: gaugeProgress)
 
@@ -75,7 +81,8 @@ struct CircularKnob: View {
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
                 Text("\(Int(normalizedValue * 100))%")
-                    .font(.system(size: 8, design: .monospaced))
+                    .font(.system(size: 11))
+                    .monospacedDigit()
                     .foregroundStyle(Color.primary.opacity(0.25))
             }
             .opacity(isEnabled ? 1 : 0.4)
