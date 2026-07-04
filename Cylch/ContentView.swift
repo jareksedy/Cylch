@@ -37,6 +37,12 @@ struct LEDColor: Identifiable, Equatable, Sendable {
         Color(red: Double(red) / 255, green: Double(green) / 255, blue: Double(blue) / 255)
     }
 
+    /// Black on bright colors (white, yellow, cyan), white on the rest.
+    var contrastingColor: Color {
+        let luminance = (0.299 * Double(red) + 0.587 * Double(green) + 0.114 * Double(blue)) / 255
+        return luminance > 0.6 ? .black : .white
+    }
+
     static let palette: [LEDColor] = [
         LEDColor(name: "Red", red: 255, green: 0, blue: 0),
         LEDColor(name: "Orange", red: 255, green: 100, blue: 0),
@@ -184,6 +190,20 @@ struct SettingsView: View {
                                 Circle()
                                     .stroke(ledColor.color.opacity(0.28), lineWidth: 5)
                                     .padding(-3)
+                            }
+                        }
+                        .overlay {
+                            if isSelected {
+                                Image("check")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 12, height: 12)
+                                    .foregroundStyle(ledColor.contrastingColor)
+                                    .transition(
+                                        .scale.combined(with: .opacity)
+                                            .animation(.spring(response: 0.35, dampingFraction: 0.55))
+                                    )
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
