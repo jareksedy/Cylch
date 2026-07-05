@@ -160,7 +160,7 @@ struct SettingsView: View {
             CircularKnob(
                 value: $viewModel.brightness,
                 gaugeStyle: viewModel.selectedEffect == .static ? .solid(viewModel.staticColor.color) : .rainbow,
-                icon: Image(systemName: "sun.min")
+                icon: Image(systemName: "sun.min.fill")
             )
                 .frame(width: 140, height: 140)
                 .help("Brightness")

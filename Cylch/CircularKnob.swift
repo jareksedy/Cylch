@@ -67,6 +67,20 @@ struct CircularKnob: View {
                     .stroke(trackColor, lineWidth: trackWidth)
                     .padding(trackPadding)
 
+                // Barely-there top light on the inner disk, fading out at 90%.
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.primary.opacity(0.02), location: 0),
+                                .init(color: .clear, location: 0.9)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .padding(trackPadding + trackWidth / 2 + 0.5)
+
 
 
                 // When disabled, the arc replicates the inner disk's layering
@@ -92,7 +106,7 @@ struct CircularKnob: View {
                     .animation(.linear(duration: 0.05), value: gaugeProgress)
                     // Slightly muted so the arc doesn't overpower the UI;
                     // stays opaque when disabled to blend with the inner disk.
-                    .opacity(isEnabled ? 0.9 : 1)
+                    .opacity(isEnabled ? 0.65 : 1)
 
                 Circle()
                     .fill(isEnabled ? pointerColor : trackColor)
