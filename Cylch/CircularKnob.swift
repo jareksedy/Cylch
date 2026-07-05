@@ -7,6 +7,7 @@ struct CircularKnob: View {
     var gaugeStyle: GaugeStyle = .rainbow
     var pointerColor: Color = .accentColor
     var scrollSensitivity: Double = 0.05
+    var icon: Image?
 
     enum GaugeStyle {
         case rainbow
@@ -47,8 +48,8 @@ struct CircularKnob: View {
             let gaugeProgress = pointerAngle / 360
 
             let trackColor = Color.black.opacity(0.28)
-            let trackWidth: CGFloat = 3
-            let gaugeWidth: CGFloat = 3
+            let trackWidth: CGFloat = 2
+            let gaugeWidth: CGFloat = 2
             let trackPadding: CGFloat = 8
 
             ZStack {
@@ -66,24 +67,53 @@ struct CircularKnob: View {
                     .stroke(trackColor, lineWidth: trackWidth)
                     .padding(trackPadding)
 
+
+
+                // When disabled, the arc replicates the inner disk's layering
+                // (opaque window background + the same tint), so it visually
+                // merges with it and "cuts through" the groove.
                 Circle()
                     .trim(from: 0, to: gaugeProgress)
-                    .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
+                    .stroke(
+                        isEnabled
+                            ? AnyShapeStyle(gaugeGradient)
+                            : AnyShapeStyle(Color(nsColor: .windowBackgroundColor)),
+                        style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round)
+                    )
+                    .overlay {
+                        if !isEnabled {
+                            Circle()
+                                .trim(from: 0, to: gaugeProgress)
+                                .stroke(Color.primary.opacity(0.04), style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
+                        }
+                    }
                     .padding(trackPadding)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.05), value: gaugeProgress)
+                    // Slightly muted so the arc doesn't overpower the UI;
+                    // stays opaque when disabled to blend with the inner disk.
+                    .opacity(isEnabled ? 0.9 : 1)
 
                 Circle()
-                    .fill(pointerColor)
+                    .fill(isEnabled ? pointerColor : trackColor)
                     .frame(width: 5, height: 5)
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
-                Text("\(Int(normalizedValue * 100))%")
-                    .font(.system(size: 11))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.primary.opacity(0.25))
+                HStack(spacing: 3) {
+                    Text("\(Int(normalizedValue * 100))%")
+                        .font(.system(size: 12, design: .monospaced))
+
+                    if let icon {
+                        icon
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+                .foregroundStyle(Color.primary.opacity(0.25))
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)

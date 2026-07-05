@@ -45,8 +45,8 @@ struct LEDColor: Identifiable, Equatable, Sendable {
 
     static let palette: [LEDColor] = [
         LEDColor(name: "Red", red: 255, green: 0, blue: 0),
-        LEDColor(name: "Orange", red: 255, green: 100, blue: 0),
-        LEDColor(name: "Yellow", red: 255, green: 255, blue: 0),
+        LEDColor(name: "Orange", red: 255, green: 75, blue: 0),
+        LEDColor(name: "Yellow", red: 255, green: 180, blue: 0),
         LEDColor(name: "Green", red: 0, green: 255, blue: 0),
         LEDColor(name: "Cyan", red: 0, green: 255, blue: 255),
         LEDColor(name: "Blue", red: 0, green: 0, blue: 255),
@@ -157,11 +157,23 @@ struct SettingsView: View {
 
     private var transportRow: some View {
         HStack(spacing: 44) {
-            CircularKnob(value: $viewModel.brightness)
+            CircularKnob(
+                value: $viewModel.brightness,
+                gaugeStyle: viewModel.selectedEffect == .static ? .solid(viewModel.staticColor.color) : .rainbow,
+                icon: Image(systemName: "sun.min")
+            )
                 .frame(width: 140, height: 140)
                 .help("Brightness")
 
-            CircularKnob(value: $viewModel.speed, gaugeStyle: .solid(.accentColor))
+            CircularKnob(
+                value: $viewModel.speed,
+                gaugeStyle: .gradient([
+                    .init(color: .accentColor, location: 0),
+                    .init(color: Color.accentColor.mix(with: .white, by: 0.45), location: 0.5),
+                    .init(color: .accentColor, location: 1)
+                ]),
+                icon: Image(systemName: "figure.run")
+            )
                 .frame(width: 140, height: 140)
                 .disabled(viewModel.selectedEffect == .static)
                 .help("Speed")
