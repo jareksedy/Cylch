@@ -48,17 +48,21 @@ struct CircularKnob: View {
             let gaugeProgress = pointerAngle / 360
 
             let isDark = colorScheme == .dark
-            let base = Color(nsColor: .windowBackgroundColor)
-            let surfaceTop = base.mix(with: .black, by: isDark ? 0.04 : 0.025)
-            let surfaceBottom = base.mix(with: .white, by: isDark ? 0.06 : 0.28)
+            // Translucent tints rather than opaque .windowBackgroundColor
+            // mixes: the window material is lighter than that color, so an
+            // opaque fill reads darker than the window. Tinting whatever the
+            // window actually draws keeps the body matched to it.
+            let surfaceTop = Color.black.opacity(isDark ? 0.04 : 0.025)
+            let surfaceBottom = Color.white.opacity(isDark ? 0.06 : 0.28)
             let trackColor = Color.black.opacity(isDark ? 0.24 : 0.2)
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
             let trackPadding: CGFloat = 8
 
             ZStack {
-                // Neumorphic body: same hue as the window background, with an
-                // inverted vertical surface gradient and straight-on relief.
+                // Neumorphic body: tints the window background showing
+                // through, with an inverted vertical surface gradient and
+                // straight-on relief.
                 Circle()
                     .fill(
                         LinearGradient(
