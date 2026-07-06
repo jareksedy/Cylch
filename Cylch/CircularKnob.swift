@@ -52,8 +52,17 @@ struct CircularKnob: View {
             // mixes: the window material is lighter than that color, so an
             // opaque fill reads darker than the window. Tinting whatever the
             // window actually draws keeps the body matched to it.
-            let surfaceTop = Color.black.opacity(isDark ? 0.04 : 0.025)
-            let surfaceBottom = Color.white.opacity(isDark ? 0.06 : 0.28)
+            // Separate palettes per theme: opacities that read well on a
+            // dark background are nearly invisible on a light one.
+            let surfaceDark = isDark
+                ? Color.black.opacity(0.04)
+                : Color.black.opacity(0.06)
+            let surfaceDarker = isDark
+                ? Color.black.opacity(0.07)
+                : Color.black.opacity(0.11)
+            let surfaceLight = isDark
+                ? Color.white.opacity(0.06)
+                : Color.white.opacity(0.75)
             let trackColor = Color.black.opacity(isDark ? 0.24 : 0.2)
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
@@ -62,12 +71,16 @@ struct CircularKnob: View {
 
             ZStack {
                 // Neumorphic body: tints the window background showing
-                // through, with an inverted vertical surface gradient and
-                // straight-on relief.
+                // through — darker at the top and bottom edges, lighter
+                // towards the middle, like a barrel lit from the front.
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [surfaceTop, surfaceBottom],
+                            stops: [
+                                .init(color: surfaceDark, location: 0),
+                                .init(color: surfaceLight, location: 0.5),
+                                .init(color: surfaceDarker, location: 1)
+                            ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -79,7 +92,7 @@ struct CircularKnob: View {
                                     stops: [
                                         .init(color: Color.primary.opacity(isDark ? 0.12 : 0.1), location: 0),
                                         .init(color: Color.primary.opacity(isDark ? 0.04 : 0.035), location: 0.45),
-                                        .init(color: surfaceBottom.opacity(0), location: 1)
+                                        .init(color: Color.white.opacity(isDark ? 0.05 : 0.45), location: 1)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -153,9 +166,10 @@ struct CircularKnob: View {
                     .padding(trackPadding)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.05), value: gaugeProgress)
-                    // Slightly muted so the arc doesn't overpower the UI;
-                    // stays opaque when disabled to blend with the inner disk.
-                    .opacity(isEnabled ? 0.65 : 1)
+                    // Muted in the dark theme so the arc doesn't overpower
+                    // the UI, fully opaque in the light one; stays opaque
+                    // when disabled to blend with the inner disk.
+                    .opacity(isEnabled && isDark ? 0.5 : 1)
 
                 Circle()
                     .fill(isEnabled ? pointerColor : trackColor)
@@ -174,7 +188,7 @@ struct CircularKnob: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 12, height: 12)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
                 .foregroundStyle(.secondary)
