@@ -65,20 +65,44 @@ struct LEDColor: Identifiable, Equatable, Sendable {
 
 struct MenuBarView: View {
     @Environment(\.openWindow) private var openWindow
+    @StateObject private var viewModel = SettingsViewModel.shared
 
     var body: some View {
-        Button("Settings...") {
+        Button {
             NSApplication.shared.activate(ignoringOtherApps: true)
             openWindow(id: "settings")
+        } label: {
+            Label("Settings...", image: "settings")
         }
         .keyboardShortcut(",", modifiers: .command)
+        .labelStyle(.titleAndIcon)
 
         Divider()
 
-        Button("Quit") {
+        Button {
+            if viewModel.connected {
+                viewModel.stopStreaming()
+            } else {
+                viewModel.connect()
+            }
+        } label: {
+            Label(viewModel.connected ? "Disconnect" : "Connect", image: viewModel.connected ? "link_horizontal_off" : "link_horizontal")
+        }
+        .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
+        .labelStyle(.titleAndIcon)
+
+        Divider()
+
+        Button {
             NSApplication.shared.terminate(nil)
+        } label: {
+            Label("Quit", image: "exit")
         }
         .keyboardShortcut("q", modifiers: .command)
+        .onAppear {
+            viewModel.onAppear()
+        }
+        .labelStyle(.titleAndIcon)
     }
 }
 
@@ -273,6 +297,60 @@ struct SettingsView: View {
         }
         .font(.system(size: 13))
         .frame(width: 340, alignment: .leading)
+        .onAppear {
+            viewModel.refreshPorts()
+        }
+    }
+
+    private var connectionSettings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            settingsRow(label: "Port") {
+                HStack(spacing: 6) {
+                    Picker("Port", selection: $viewModel.selectedPort) {
+                        if viewModel.availablePorts.isEmpty {
+                            Text("No Ports").tag("")
+                        }
+
+                        ForEach(viewModel.availablePorts, id: \.self) { port in
+                            Text(port).tag(port)
+                        }
+                    }
+                    .labelsHidden()
+                    .disabled(viewModel.connected)
+
+                    Button {
+                        viewModel.refreshPorts()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Refresh Ports")
+                }
+            }
+
+            settingsRow(label: "LEDs") {
+                HStack(spacing: 8) {
+                    Text("\(viewModel.ledCount)")
+                        .monospacedDigit()
+                        .frame(minWidth: 30, alignment: .leading)
+
+                    Stepper("LED Count", value: $viewModel.ledCount, in: 1...300)
+                        .labelsHidden()
+                }
+            }
+
+            Button {
+                if viewModel.connected {
+                    viewModel.stopStreaming()
+                } else {
+                    viewModel.connect()
+                }
+            } label: {
+                Label(viewModel.connected ? "Disconnect" : "Connect", systemImage: viewModel.connected ? "stop.fill" : "play.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
+            .padding(.top, 2)
+        }
     }
 
     private func settingsSection<Content: View>(title: String, systemName: String, @ViewBuilder content: () -> Content) -> some View {
@@ -319,42 +397,6 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
-        }
-    }
-
-    private var connectionSettings: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            settingsRow(label: "Port") {
-                HStack(spacing: 8) {
-                    Picker("Serial Port", selection: $viewModel.selectedPort) {
-                        ForEach(viewModel.availablePorts, id: \.self) { port in
-                            Text(port).tag(port)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                    .disabled(viewModel.connected)
-
-                    Button {
-                        viewModel.refreshPorts()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.system(size: 12, weight: .medium))
-                    .help("Refresh ports")
-                }
-            }
-
-            settingsRow(label: "LEDs") {
-                Stepper(value: $viewModel.ledCount, in: 1...300) {
-                    Text("\(viewModel.ledCount)")
-                        .font(.system(size: 13))
-                        .monospacedDigit()
-                        .frame(width: 44, alignment: .leading)
-                }
-            }
-
         }
     }
 
