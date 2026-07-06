@@ -47,40 +47,55 @@ struct CircularKnob: View {
             let pointerAngle = dragAngle ?? (normalizedValue * 360)
             let gaugeProgress = pointerAngle / 360
 
-            let trackColor = Color.black.opacity(0.28)
+            let isDark = colorScheme == .dark
+            let base = Color(nsColor: .windowBackgroundColor)
+            let surfaceTop = base.mix(with: .black, by: isDark ? 0.04 : 0.025)
+            let surfaceBottom = base.mix(with: .white, by: isDark ? 0.06 : 0.28)
+            let trackColor = Color.black.opacity(isDark ? 0.24 : 0.2)
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
             let trackPadding: CGFloat = 8
 
             ZStack {
-                // Flat body, tinted like the palette and picker capsules,
-                // outlined like the picker's selected segment.
-                Circle()
-                    .fill(Color.primary.opacity(0.04))
-                    .overlay(
-                        Circle()
-                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                    )
-                    .padding(knobInset)
-
-                Circle()
-                    .stroke(trackColor, lineWidth: trackWidth)
-                    .padding(trackPadding)
-
-                // Barely-there top light on the inner disk, fading out at 90%.
+                // Neumorphic body: same hue as the window background, with an
+                // inverted vertical surface gradient and straight-on relief.
                 Circle()
                     .fill(
                         LinearGradient(
-                            stops: [
-                                .init(color: Color.primary.opacity(0.02), location: 0),
-                                .init(color: .clear, location: 0.9)
-                            ],
+                            colors: [surfaceTop, surfaceBottom],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
-                    .padding(trackPadding + trackWidth / 2 + 0.5)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: Color.primary.opacity(isDark ? 0.12 : 0.1), location: 0),
+                                        .init(color: Color.primary.opacity(isDark ? 0.04 : 0.035), location: 0.45),
+                                        .init(color: surfaceBottom.opacity(0), location: 1)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: .black.opacity(isDark ? 0.28 : 0.16), radius: 5, x: 0, y: 5)
+                    .shadow(color: .white.opacity(isDark ? 0.08 : 0.85), radius: 5, x: 0, y: -5)
+                    .padding(knobInset)
 
+                // Engraved groove: a light edge peeking out just below the
+                // dark track line makes it read as carved into the surface.
+                Circle()
+                    .stroke(Color.white.opacity(isDark ? 0.03 : 0.35), lineWidth: trackWidth)
+                    .padding(trackPadding)
+                    .offset(y: 1)
+
+                Circle()
+                    .stroke(trackColor, lineWidth: trackWidth)
+                    .padding(trackPadding)
 
 
                 // When disabled, the arc replicates the inner disk's layering

@@ -24,7 +24,7 @@ struct CylchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Cylch", systemImage: "circlebadge.fill") {
+        MenuBarExtra("Cylch", image: "cylch-16x16") {
             MenuBarView()
         }
 
