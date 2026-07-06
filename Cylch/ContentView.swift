@@ -9,6 +9,14 @@ import SwiftUI
 import Foundation
 import Darwin
 import Combine
+import os
+
+// NOTE: Xcode previews launch this real app binary and JIT-compile edited
+// source files. That JIT corrupts selectors on any Obj-C message send made
+// from this app's own sources (NSLock, NSThread, ProcessInfo all abort with
+// "unrecognized selector"), so code reachable from previews must stick to
+// pure Swift and C APIs (OSAllocatedUnfairLock, DispatchQueue, getenv,
+// opendir, ...). Framework-internal Obj-C is unaffected.
 
 enum LEDEffect: String, CaseIterable, Identifiable {
     case `static` = "Static"
@@ -346,6 +354,7 @@ struct SettingsView: View {
                         .frame(width: 44, alignment: .leading)
                 }
             }
+
         }
     }
 
@@ -472,7 +481,7 @@ final class SettingsViewModel: ObservableObject {
         connect()
     }
 
-    private func connect() {
+    func connect() {
         guard !selectedPort.isEmpty else {
             errorMessage = "No serial port selected."
             return
@@ -576,58 +585,71 @@ struct StreamConfig: Sendable {
     var lightsOff: Bool = false
 }
 
-actor StreamConfigStore {
-    private var config: StreamConfig
-
-    init(initial: StreamConfig) {
-        config = initial
-    }
-
-    func set(_ newConfig: StreamConfig) {
-        config = newConfig
-    }
-
-    func get() -> StreamConfig {
-        config
-    }
-}
-
 final class AdalightController {
     var onConnectedChanged: (@MainActor (Bool) -> Void)?
     var onError: (@MainActor (String) -> Void)?
 
-    private var streamTask: Task<Void, Never>?
-    private let configStore = StreamConfigStore(initial: StreamConfig(brightness: 75, speed: 25, ledCount: 65))
+    private struct StreamState {
+        var config = StreamConfig(brightness: 75, speed: 25, ledCount: 65)
+        var generation = 0
+    }
 
+    // Swift-native lock rather than NSLock: the Xcode previews JIT
+    // crashes on Obj-C message sends to NSLock (unrecognized selector).
+    private let state = OSAllocatedUnfairLock(initialState: StreamState())
+
+    // Synchronous and lock-based so UI interactions hand the streaming
+    // thread a new config without spawning tasks or hopping executors.
     func updateConfig(_ config: StreamConfig) {
-        Task {
-            await configStore.set(config)
-        }
+        state.withLock { $0.config = config }
     }
 
     func start(port: String, initialConfig: StreamConfig) {
-        stop()
-
-        Task {
-            await configStore.set(initialConfig)
+        let runGeneration = state.withLock { state in
+            state.generation += 1
+            state.config = initialConfig
+            return state.generation
         }
 
-        streamTask = Task.detached(priority: .background) { [weak self] in
-            guard let self else { return }
-            await self.runLoop(port: port)
+        // Serial I/O blocks (open, write, tcdrain), so it runs on its own
+        // dispatch queue instead of the Swift concurrency cooperative pool —
+        // blocking a pool thread stalls unrelated tasks and makes the UI
+        // stutter. A dedicated queue (not NSThread) keeps this file free of
+        // Obj-C calls, which crash under the previews JIT.
+        DispatchQueue(label: "AdalightSerialStream", qos: .utility).async { [weak self] in
+            self?.runLoop(port: port, runGeneration: runGeneration)
         }
     }
 
     func stop() {
-        streamTask?.cancel()
-        streamTask = nil
-        onConnectedChanged?(false)
+        state.withLock { $0.generation += 1 }
+
+        Task { @MainActor [onConnectedChanged] in
+            onConnectedChanged?(false)
+        }
     }
 
-    private func runLoop(port: String) async {
+    private func isCurrent(_ runGeneration: Int) -> Bool {
+        state.withLock { $0.generation == runGeneration }
+    }
+
+    private func currentConfig() -> StreamConfig {
+        state.withLock { $0.config }
+    }
+
+    // Delivers a callback on the main actor, dropping it if this streaming
+    // run has been superseded by a newer start()/stop() in the meantime.
+    private func deliver(ifCurrent runGeneration: Int, _ action: @escaping @MainActor () -> Void) {
+        Task { @MainActor in
+            guard self.isCurrent(runGeneration) else { return }
+            action()
+        }
+    }
+
+    private func runLoop(port: String, runGeneration: Int) {
         let fd = open(port, O_RDWR | O_NOCTTY)
         guard fd != -1 else {
-            await MainActor.run {
+            deliver(ifCurrent: runGeneration) { [self] in
                 onConnectedChanged?(false)
                 onError?("Cannot open port: \(port)")
             }
@@ -636,7 +658,7 @@ final class AdalightController {
 
         guard configureSerialPort(fd) else {
             close(fd)
-            await MainActor.run {
+            deliver(ifCurrent: runGeneration) { [self] in
                 onConnectedChanged?(false)
                 onError?("Failed to configure serial port: \(port)")
             }
@@ -646,7 +668,7 @@ final class AdalightController {
         tcflush(fd, TCIOFLUSH)
         usleep(100_000)
 
-        await MainActor.run {
+        deliver(ifCurrent: runGeneration) { [self] in
             onConnectedChanged?(true)
         }
 
@@ -656,15 +678,15 @@ final class AdalightController {
             let blankConfig = StreamConfig(brightness: 0, speed: 0, ledCount: lastLEDCount)
             writeAll(makeFrame(config: blankConfig, gradientOffset: 0), to: fd)
             close(fd)
-            Task { @MainActor in
+            deliver(ifCurrent: runGeneration) { [self] in
                 onConnectedChanged?(false)
             }
         }
 
         var gradientOffset = 0.0
 
-        while !Task.isCancelled {
-            let config = await configStore.get()
+        while isCurrent(runGeneration) {
+            let config = currentConfig()
             lastLEDCount = max(1, min(300, config.ledCount))
 
             let frame = makeFrame(config: config, gradientOffset: gradientOffset)
@@ -679,11 +701,7 @@ final class AdalightController {
 
             let delay = config.paused ? 25_000_000 : frameDelayNanoseconds(for: config.speed)
             if delay > 0 {
-                do {
-                    try await Task.sleep(nanoseconds: delay)
-                } catch {
-                    break
-                }
+                usleep(useconds_t(delay / 1_000))
             }
         }
     }

@@ -10,6 +10,9 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Runs for the real app and for Xcode preview agents alike (previews
+        // launch this binary), so everything reachable from here must avoid
+        // Obj-C message sends — the previews JIT crashes on them.
         MainActor.assumeIsolated {
             SettingsViewModel.shared.autoConnectOnLaunch()
         }
