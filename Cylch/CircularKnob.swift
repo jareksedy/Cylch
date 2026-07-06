@@ -58,6 +58,7 @@ struct CircularKnob: View {
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
             let trackPadding: CGFloat = 8
+            let bezelWidth: CGFloat = trackPadding - knobInset - 1
 
             ZStack {
                 // Neumorphic body: tints the window background showing
@@ -86,14 +87,43 @@ struct CircularKnob: View {
                                 lineWidth: 1
                             )
                     )
-                    .shadow(color: .black.opacity(isDark ? 0.28 : 0.16), radius: 5, x: 0, y: 5)
-                    .shadow(color: .white.opacity(isDark ? 0.08 : 0.85), radius: 5, x: 0, y: -5)
                     .padding(knobInset)
+
+                // Convex bezel: the rim between the outer stroke and the
+                // groove is lit from above so it reads as a raised ring.
+                // Inset by an extra point so it doesn't wash out the stroke.
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isDark ? 0.06 : 0.55),
+                                Color.black.opacity(isDark ? 0.22 : 0.07)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: bezelWidth
+                    )
+                    .padding(knobInset + 1 + bezelWidth / 2)
 
                 // Engraved groove: a light edge peeking out just below the
                 // dark track line makes it read as carved into the surface.
+                // The edge fades out towards the bottom, where it would
+                // otherwise stack with the bezel's dark side and the track
+                // line into a striped "multiple grooves" look.
                 Circle()
-                    .stroke(Color.white.opacity(isDark ? 0.03 : 0.35), lineWidth: trackWidth)
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(isDark ? 0.03 : 0.35), location: 0),
+                                .init(color: Color.white.opacity(isDark ? 0.015 : 0.15), location: 0.6),
+                                .init(color: Color.white.opacity(0), location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: trackWidth
+                    )
                     .padding(trackPadding)
                     .offset(y: 1)
 
@@ -144,9 +174,10 @@ struct CircularKnob: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 12, height: 12)
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                .foregroundStyle(Color.primary.opacity(0.25))
+                .foregroundStyle(.secondary)
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
