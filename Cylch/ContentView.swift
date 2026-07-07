@@ -93,6 +93,33 @@ struct MenuBarView: View {
 
         Divider()
 
+        Menu {
+            levelPicker(for: $viewModel.brightness)
+        } label: {
+            Label("Brightness: \(Int(viewModel.brightness))%", systemImage: "sun.min.fill")
+        }
+        .labelStyle(.titleAndIcon)
+
+        // NSMenu ignores .disabled on items with submenus, so in Static
+        // mode the submenu is swapped for a plain disabled item instead.
+        if viewModel.selectedEffect == .static {
+            Button {
+            } label: {
+                Label("Speed: \(Int(viewModel.speed))%", systemImage: "figure.run")
+            }
+            .disabled(true)
+            .labelStyle(.titleAndIcon)
+        } else {
+            Menu {
+                levelPicker(for: $viewModel.speed)
+            } label: {
+                Label("Speed: \(Int(viewModel.speed))%", systemImage: "figure.run")
+            }
+            .labelStyle(.titleAndIcon)
+        }
+
+        Divider()
+
         Button {
             NSApplication.shared.terminate(nil)
         } label: {
@@ -103,6 +130,18 @@ struct MenuBarView: View {
             viewModel.onAppear()
         }
         .labelStyle(.titleAndIcon)
+    }
+
+    /// Menu items for the 0–100% levels in 25% steps; the current level
+    /// (exact match only) gets a checkmark.
+    @ViewBuilder
+    private func levelPicker(for value: Binding<Double>) -> some View {
+        ForEach([0.0, 25, 50, 75, 100], id: \.self) { level in
+            Toggle("\(Int(level))%", isOn: Binding(
+                get: { value.wrappedValue == level },
+                set: { _ in value.wrappedValue = level }
+            ))
+        }
     }
 }
 
