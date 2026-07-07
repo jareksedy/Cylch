@@ -145,31 +145,19 @@ struct CircularKnob: View {
                     .padding(trackPadding)
 
 
-                // When disabled, the arc replicates the inner disk's layering
-                // (opaque window background + the same tint), so it visually
-                // merges with it and "cuts through" the groove.
-                Circle()
-                    .trim(from: 0, to: gaugeProgress)
-                    .stroke(
-                        isEnabled
-                            ? AnyShapeStyle(gaugeGradient)
-                            : AnyShapeStyle(Color(nsColor: .windowBackgroundColor)),
-                        style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round)
-                    )
-                    .overlay {
-                        if !isEnabled {
-                            Circle()
-                                .trim(from: 0, to: gaugeProgress)
-                                .stroke(Color.primary.opacity(0.04), style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
-                        }
-                    }
-                    .padding(trackPadding)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.05), value: gaugeProgress)
-                    // Muted in the dark theme so the arc doesn't overpower
-                    // the UI, fully opaque in the light one; stays opaque
-                    // when disabled to blend with the inner disk.
-                    .opacity(isEnabled && isDark ? 0.5 : 1)
+                // The arc is drawn only while enabled; a disabled knob shows
+                // just the empty groove.
+                if isEnabled {
+                    Circle()
+                        .trim(from: 0, to: gaugeProgress)
+                        .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
+                        .padding(trackPadding)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.linear(duration: 0.05), value: gaugeProgress)
+                        // Muted in the dark theme so the arc doesn't
+                        // overpower the UI, fully opaque in the light one.
+                        .opacity(isDark ? 0.5 : 1)
+                }
 
                 Circle()
                     .fill(isEnabled ? pointerColor : trackColor)
