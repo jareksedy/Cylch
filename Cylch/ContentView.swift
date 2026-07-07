@@ -96,7 +96,7 @@ struct MenuBarView: View {
         Menu {
             levelPicker(for: $viewModel.brightness)
         } label: {
-            Label("Brightness: \(Int(viewModel.brightness))%", systemImage: "sun.min.fill")
+            Label("Brightness: \(Int(viewModel.brightness))%", image: "brightness")
         }
         .labelStyle(.titleAndIcon)
 
@@ -105,7 +105,7 @@ struct MenuBarView: View {
         if viewModel.selectedEffect == .static {
             Button {
             } label: {
-                Label("Speed: \(Int(viewModel.speed))%", systemImage: "figure.run")
+                Label("Speed: \(Int(viewModel.speed))%", image: "speed")
             }
             .disabled(true)
             .labelStyle(.titleAndIcon)
@@ -113,7 +113,7 @@ struct MenuBarView: View {
             Menu {
                 levelPicker(for: $viewModel.speed)
             } label: {
-                Label("Speed: \(Int(viewModel.speed))%", systemImage: "figure.run")
+                Label("Speed: \(Int(viewModel.speed))%", image: "speed")
             }
             .labelStyle(.titleAndIcon)
         }
@@ -231,7 +231,7 @@ struct SettingsView: View {
             CircularKnob(
                 value: $viewModel.brightness,
                 gaugeStyle: viewModel.selectedEffect == .static ? .solid(viewModel.staticColor.color) : .rainbow,
-                icon: Image(systemName: "sun.min.fill")
+                icon: Image("brightness")
             )
                 .frame(width: 140, height: 140)
                 .help("Brightness")
@@ -243,7 +243,7 @@ struct SettingsView: View {
                     .init(color: Color.accentColor.mix(with: .white, by: 0.45), location: 0.5),
                     .init(color: .accentColor, location: 1)
                 ]),
-                icon: Image(systemName: "figure.run")
+                icon: Image("speed")
             )
                 .frame(width: 140, height: 140)
                 .disabled(viewModel.selectedEffect == .static)
