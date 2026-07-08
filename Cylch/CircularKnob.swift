@@ -54,15 +54,13 @@ struct CircularKnob: View {
             // window actually draws keeps the body matched to it.
             // Separate palettes per theme: opacities that read well on a
             // dark background are nearly invisible on a light one.
-            let surfaceDark = isDark
-                ? Color.black.opacity(0.04)
-                : Color.black.opacity(0.06)
-            let surfaceDarker = isDark
-                ? Color.black.opacity(0.07)
-                : Color.black.opacity(0.11)
-            let surfaceLight = isDark
-                ? Color.white.opacity(0.06)
-                : Color.white.opacity(0.75)
+            // Sheen and shade tones for the polished conic sweep.
+            let surfaceSheen = isDark
+                ? Color.white.opacity(0.035)
+                : Color.white.opacity(0.55)
+            let surfaceShade = isDark
+                ? Color.black.opacity(0.045)
+                : Color.black.opacity(0.09)
             let trackColor = Color.black.opacity(isDark ? 0.24 : 0.2)
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
@@ -71,18 +69,25 @@ struct CircularKnob: View {
 
             ZStack {
                 // Neumorphic body: tints the window background showing
-                // through — darker at the top and bottom edges, lighter
-                // towards the middle, like a barrel lit from the front.
+                // through — a perfectly symmetric spun-metal conic sweep:
+                // identical highlights at the top and bottom, softer sheens
+                // on the sides and dark diagonals between them.
                 Circle()
                     .fill(
-                        LinearGradient(
+                        AngularGradient(
                             stops: [
-                                .init(color: surfaceDark, location: 0),
-                                .init(color: surfaceLight, location: 0.5),
-                                .init(color: surfaceDarker, location: 1)
+                                .init(color: surfaceSheen, location: 0),
+                                .init(color: surfaceShade, location: 0.125),
+                                .init(color: surfaceSheen, location: 0.25),
+                                .init(color: surfaceShade, location: 0.375),
+                                .init(color: surfaceSheen, location: 0.5),
+                                .init(color: surfaceShade, location: 0.625),
+                                .init(color: surfaceSheen, location: 0.75),
+                                .init(color: surfaceShade, location: 0.875),
+                                .init(color: surfaceSheen, location: 1)
                             ],
-                            startPoint: .top,
-                            endPoint: .bottom
+                            center: .center,
+                            angle: .degrees(-90)
                         )
                     )
                     .overlay(

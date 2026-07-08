@@ -93,30 +93,19 @@ struct MenuBarView: View {
 
         Divider()
 
-        Menu {
-            levelPicker(for: $viewModel.brightness)
-        } label: {
-            Label("Brightness: \(Int(viewModel.brightness))%", image: "brightness")
-        }
-        .labelStyle(.titleAndIcon)
+        levelMenu(
+            "Brightness: \(Int(viewModel.brightness))%",
+            image: "brightness",
+            value: $viewModel.brightness,
+            isEnabled: viewModel.connected
+        )
 
-        // NSMenu ignores .disabled on items with submenus, so in Static
-        // mode the submenu is swapped for a plain disabled item instead.
-        if viewModel.selectedEffect == .static {
-            Button {
-            } label: {
-                Label("Speed: \(Int(viewModel.speed))%", image: "speed")
-            }
-            .disabled(true)
-            .labelStyle(.titleAndIcon)
-        } else {
-            Menu {
-                levelPicker(for: $viewModel.speed)
-            } label: {
-                Label("Speed: \(Int(viewModel.speed))%", image: "speed")
-            }
-            .labelStyle(.titleAndIcon)
-        }
+        levelMenu(
+            "Speed: \(Int(viewModel.speed))%",
+            image: "speed",
+            value: $viewModel.speed,
+            isEnabled: viewModel.connected && viewModel.selectedEffect != .static
+        )
 
         Divider()
 
@@ -130,6 +119,28 @@ struct MenuBarView: View {
             viewModel.onAppear()
         }
         .labelStyle(.titleAndIcon)
+    }
+
+    /// A submenu with the 0–100% levels while enabled. NSMenu ignores
+    /// .disabled on items with submenus, so when unavailable the control
+    /// renders as a plain disabled item instead.
+    @ViewBuilder
+    private func levelMenu(_ title: String, image: String, value: Binding<Double>, isEnabled: Bool) -> some View {
+        if isEnabled {
+            Menu {
+                levelPicker(for: value)
+            } label: {
+                Label(title, image: image)
+            }
+            .labelStyle(.titleAndIcon)
+        } else {
+            Button {
+            } label: {
+                Label(title, image: image)
+            }
+            .disabled(true)
+            .labelStyle(.titleAndIcon)
+        }
     }
 
     /// Menu items for the 0–100% levels in 25% steps; the current level
@@ -249,10 +260,13 @@ struct SettingsView: View {
                 .disabled(viewModel.selectedEffect == .static)
                 .help("Speed")
         }
+        .disabled(!viewModel.connected)
     }
 
     private var colorPalette: some View {
-        HStack(spacing: 0) {
+        let isInactive = viewModel.selectedEffect == .rainbow || !viewModel.connected
+
+        return HStack(spacing: 0) {
             ForEach(LEDColor.palette) { ledColor in
                 let isSelected = viewModel.staticColor == ledColor
 
@@ -302,8 +316,9 @@ struct SettingsView: View {
         // and bottom edges.
         .padding(.horizontal, -2)
         .background(Capsule().fill(Color.primary.opacity(0.04)))
-        .opacity(viewModel.selectedEffect == .rainbow ? 0.45 : 1)
-        .saturation(viewModel.selectedEffect == .rainbow ? 0.25 : 1)
+        .disabled(!viewModel.connected)
+        .opacity(isInactive ? 0.45 : 1)
+        .saturation(isInactive ? 0.25 : 1)
     }
 
     private var settingsPopover: some View {
