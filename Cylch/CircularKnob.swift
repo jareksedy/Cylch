@@ -195,6 +195,12 @@ struct CircularKnob: View {
                     }
                 }
                 .foregroundStyle(.secondary)
+                // Blends the label into the metal surface instead of
+                // floating above it: multiply "prints" the dark text into
+                // the light theme, screen lets the dark theme's sheen show
+                // through the light glyphs.
+                .blendMode(isDark ? .screen : .multiply)
+                .opacity(0.75)
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
