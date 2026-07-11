@@ -171,16 +171,26 @@ struct CircularKnob: View {
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
-                HStack(spacing: 3) {
-                    Text("\(Int(normalizedValue * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
+                HStack(spacing: 5) {
+                    // A hidden "100%" reserves the widest possible value, so
+                    // the group's width is constant and the icon never
+                    // shifts as the number changes.
+                    ZStack(alignment: .trailing) {
+                        Text("100%")
+                            .hidden()
+
+                        Text("\(Int(normalizedValue * 100))%")
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .fontWidth(.expanded)
+                    .monospacedDigit()
 
                     if let icon {
                         icon
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 12, height: 12)
+                            .frame(width: 13, height: 13)
                             .foregroundStyle(Color.accentColor)
                     }
                 }
