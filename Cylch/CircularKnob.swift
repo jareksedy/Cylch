@@ -175,18 +175,27 @@ struct CircularKnob: View {
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
                 HStack(spacing: 5) {
-                    // A hidden "100%" reserves the widest possible value, so
-                    // the group's width is constant and the icon never
-                    // shifts as the number changes.
-                    ZStack(alignment: .trailing) {
-                        Text("100%")
-                            .hidden()
-
-                        Text("\(Int(normalizedValue * 100))%")
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .fontWidth(.expanded)
-                    .monospacedDigit()
+                    // A hidden "100%" reserves the widest possible value; the
+                    // live value sits on its trailing edge at natural size,
+                    // with layout animations suppressed — otherwise the
+                    // withAnimation transaction from the scroll handler
+                    // animates the text frame and the digits slide around
+                    // the % sign on width changes (9→10, 99→100).
+                    // Deliberately NOT monospacedDigit: tabular figures pad
+                    // narrow glyphs ("1") inside fixed cells, which makes the
+                    // optical gap to the % sign vary (51% vs 56%). Natural
+                    // kerning keeps the last digit snug against % instead.
+                    Text("100%")
+                        .hidden()
+                        .overlay(alignment: .trailing) {
+                            Text("\(Int(normalizedValue * 100))%")
+                                .fixedSize()
+                                .transaction { $0.animation = nil }
+                        }
+                        .font(.system(size: 12, weight: .semibold).width(.expanded))
+                    // Optical centering: nudge the digits a hair left so the
+                    // value+icon group doesn't read as right-heavy.
+                    .offset(x: -2)
 
                     if let icon {
                         icon
@@ -204,6 +213,12 @@ struct CircularKnob: View {
                 // through the light glyphs.
                 .blendMode(isDark ? .screen : .multiply)
                 .opacity(0.75)
+                // Letterpress relief on top of the blend: a hair of shadow
+                // above and light below each glyph. Applied after the blend
+                // mode so the shadows composite normally and survive
+                // multiply/screen.
+                .shadow(color: .black.opacity(isDark ? 0.5 : 0.25), radius: 0.5, x: 0, y: -0.75)
+                .shadow(color: .white.opacity(isDark ? 0.15 : 0.9), radius: 0.5, x: 0, y: 0.75)
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
