@@ -45,10 +45,12 @@ struct LEDColor: Identifiable, Equatable, Sendable {
         Color(red: Double(red) / 255, green: Double(green) / 255, blue: Double(blue) / 255)
     }
 
-    /// Black on bright colors (white, yellow, cyan), white on the rest.
+    /// Black on bright colors (white, yellow, green, cyan), white on the
+    /// rest. The 0.55 threshold is picked so pure green (luminance 0.587)
+    /// gets a dark checkmark — a white one is barely readable on it.
     var contrastingColor: Color {
         let luminance = (0.299 * Double(red) + 0.587 * Double(green) + 0.114 * Double(blue)) / 255
-        return luminance > 0.6 ? .black : .white
+        return luminance > 0.55 ? .black : .white
     }
 
     static let palette: [LEDColor] = [
