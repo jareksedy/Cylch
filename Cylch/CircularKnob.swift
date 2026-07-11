@@ -190,7 +190,14 @@ struct CircularKnob: View {
                         .overlay(alignment: .trailing) {
                             Text("\(Int(normalizedValue * 100))%")
                                 .fixedSize()
-                                .transaction { $0.animation = nil }
+                                // Odometer-style rolling digits: they spin
+                                // up as the value grows and down as it
+                                // shrinks. The explicit transaction replaces
+                                // whatever animation the caller used (or the
+                                // suppressed layout one), so the roll speed
+                                // is consistent everywhere.
+                                .contentTransition(.numericText(value: normalizedValue))
+                                .transaction { $0.animation = .snappy(duration: 0.05) }
                         }
                         .font(.system(size: 12, weight: .semibold).width(.expanded))
                     // Optical centering: nudge the digits a hair left so the
