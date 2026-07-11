@@ -161,7 +161,8 @@ struct MenuBarView: View {
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
     @Namespace private var pickerNamespace
-    @State private var showSettingsPopover = false
+    @State private var showConnectionPopover = false
+    @State private var showSchedulePopover = false
 
     var body: some View {
         VStack(spacing: 28) {
@@ -182,16 +183,31 @@ struct SettingsView: View {
         .toolbar {
             ToolbarItem {
                 Button {
-                    showSettingsPopover.toggle()
+                    showSchedulePopover.toggle()
                 } label: {
-                    Image("settings")
+                    Image("moon")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 16, height: 16)
                 }
-                .help("Settings")
-                .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
-                    settingsPopover
+                .help("Night Schedule")
+                .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
+                    SchedulePopoverView()
+                }
+            }
+
+            ToolbarItem {
+                Button {
+                    showConnectionPopover.toggle()
+                } label: {
+                    Image("link_horizontal")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                }
+                .help("Connection")
+                .popover(isPresented: $showConnectionPopover, arrowEdge: .bottom) {
+                    ConnectionPopoverView()
                 }
             }
         }
@@ -323,74 +339,141 @@ struct SettingsView: View {
         .saturation(isInactive ? 0.25 : 1)
     }
 
-    private var settingsPopover: some View {
-        VStack(alignment: .leading, spacing: 0) {
+}
+
+/// Shared chrome for the toolbar popovers, in the app's own voice: an
+/// accent template icon with an expanded-width title (echoing the knob
+/// labels), then the content — no window-style divider chrome.
+private struct SettingsPopoverPanel<Content: View>: View {
+    let title: String
+    let imageName: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Image("settings")
+                Image(imageName)
+                    .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 15, height: 15)
-                    .foregroundStyle(.secondary)
+                    .frame(width: 14, height: 14)
+                    .foregroundStyle(Color.accentColor)
 
-                Text("Settings")
-                    .font(.system(size: 15, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold).width(.expanded))
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.leading, 2)
 
-            Divider()
-
-            settingsSection(title: "Connection", systemName: "cable.connector") {
-                connectionSettings
-            }
-
-            Divider()
-
-            settingsSection(title: "Schedule", systemName: "moon") {
-                scheduleSettings
-            }
+            content()
         }
+        .padding(16)
         .font(.system(size: 13))
-        .frame(width: 340, alignment: .leading)
-        .onAppear {
-            viewModel.refreshPorts()
-        }
+        .frame(width: 320, alignment: .leading)
     }
+}
 
-    private var connectionSettings: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            settingsRow(label: "Port") {
-                HStack(spacing: 6) {
-                    Picker("Port", selection: $viewModel.selectedPort) {
-                        if viewModel.availablePorts.isEmpty {
-                            Text("No Ports").tag("")
+/// The controls live on a "card" tinted and stroked exactly like the effect
+/// picker and palette capsules in the main window.
+private struct SettingsCard<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct SettingsRow<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(label)
+                .font(.system(size: 12).width(.expanded))
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 28)
+    }
+}
+
+/// Status caption at the bottom of a popover: a small state dot that lights
+/// up in the given color while active, plus a quiet monospaced telemetry
+/// line matching the main window's type.
+private struct StatusFooter: View {
+    let isActive: Bool
+    let activeColor: Color
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Circle()
+                .fill(isActive ? activeColor : Color.secondary.opacity(0.4))
+                .frame(width: 6, height: 6)
+
+            Text(text)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.leading, 2)
+    }
+}
+
+struct ConnectionPopoverView: View {
+    @StateObject private var viewModel = SettingsViewModel.shared
+
+    var body: some View {
+        SettingsPopoverPanel(title: "Connection", imageName: "link_horizontal") {
+            SettingsCard {
+                SettingsRow(label: "Port") {
+                    HStack(spacing: 6) {
+                        Picker("Port", selection: $viewModel.selectedPort) {
+                            if viewModel.availablePorts.isEmpty {
+                                Text("No Ports").tag("")
+                            }
+
+                            ForEach(viewModel.availablePorts, id: \.self) { port in
+                                Text(port).tag(port)
+                            }
                         }
-
-                        ForEach(viewModel.availablePorts, id: \.self) { port in
-                            Text(port).tag(port)
-                        }
-                    }
-                    .labelsHidden()
-                    .disabled(viewModel.connected)
-
-                    Button {
-                        viewModel.refreshPorts()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("Refresh Ports")
-                }
-            }
-
-            settingsRow(label: "LEDs") {
-                HStack(spacing: 8) {
-                    Text("\(viewModel.ledCount)")
-                        .monospacedDigit()
-                        .frame(minWidth: 30, alignment: .leading)
-
-                    Stepper("LED Count", value: $viewModel.ledCount, in: 1...300)
                         .labelsHidden()
+                        .disabled(viewModel.connected)
+
+                        Button {
+                            viewModel.refreshPorts()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .help("Refresh Ports")
+                    }
+                }
+
+                SettingsRow(label: "LEDs") {
+                    HStack(spacing: 8) {
+                        Text("\(viewModel.ledCount)")
+                            .monospacedDigit()
+                            .frame(minWidth: 30, alignment: .leading)
+
+                        Stepper("LED Count", value: $viewModel.ledCount, in: 1...300)
+                            .labelsHidden()
+                    }
                 }
             }
 
@@ -401,77 +484,76 @@ struct SettingsView: View {
                     viewModel.connect()
                 }
             } label: {
-                Label(viewModel.connected ? "Disconnect" : "Connect", systemImage: viewModel.connected ? "stop.fill" : "play.fill")
+                Label(viewModel.connected ? "Disconnect" : "Connect", image: viewModel.connected ? "link_horizontal_off" : "link_horizontal")
                     .frame(maxWidth: .infinity)
             }
             .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
-            .padding(.top, 2)
+
+            StatusFooter(
+                isActive: viewModel.connected,
+                activeColor: .green,
+                text: connectionSummary
+            )
+        }
+        .onAppear {
+            viewModel.refreshPorts()
         }
     }
 
-    private func settingsSection<Content: View>(title: String, systemName: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 7) {
-                Image(systemName: systemName)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            content()
+    private var connectionSummary: String {
+        if viewModel.connected {
+            let portName = viewModel.selectedPort.split(separator: "/").last.map(String.init) ?? viewModel.selectedPort
+            return "Streaming to \(portName)"
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+
+        return viewModel.selectedPort.isEmpty ? "No serial port selected" : "Ready to connect"
     }
+}
 
-    private var scheduleSettings: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            settingsRow(label: "Night") {
-                Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
-                    .labelsHidden()
+struct SchedulePopoverView: View {
+    @StateObject private var viewModel = SettingsViewModel.shared
+
+    var body: some View {
+        SettingsPopoverPanel(title: "Night Schedule", imageName: "moon") {
+            SettingsCard {
+                SettingsRow(label: "Enabled") {
+                    Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
+                        .labelsHidden()
+                }
+
+                SettingsRow(label: "From") {
+                    DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .disabled(!viewModel.scheduleEnabled)
+                }
+
+                SettingsRow(label: "Until") {
+                    DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .disabled(!viewModel.scheduleEnabled)
+                }
             }
 
-            settingsRow(label: "From") {
-                DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .disabled(!viewModel.scheduleEnabled)
-            }
-
-            settingsRow(label: "Until") {
-                DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .disabled(!viewModel.scheduleEnabled)
-            }
-
-            Text(viewModel.scheduleSummary)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 2)
+            StatusFooter(
+                isActive: viewModel.scheduleActive,
+                activeColor: .indigo,
+                text: viewModel.scheduleSummary
+            )
         }
-    }
-
-    private func settingsRow<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 58, alignment: .leading)
-
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(minHeight: 28)
     }
 }
 
 #Preview {
     SettingsView()
         .frame(width: 420, height: 330)
+}
+
+#Preview("Connection Popover") {
+    ConnectionPopoverView()
+}
+
+#Preview("Schedule Popover") {
+    SchedulePopoverView()
 }
 
 @MainActor
