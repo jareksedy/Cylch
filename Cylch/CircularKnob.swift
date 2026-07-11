@@ -158,7 +158,10 @@ struct CircularKnob: View {
                         .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
                         .padding(trackPadding)
                         .rotationEffect(.degrees(-90))
-                        .animation(.linear(duration: 0.05), value: gaugeProgress)
+                        // Must match the pointer dot's animation exactly —
+                        // any difference in curve or duration makes the dot
+                        // visibly lag behind the arc on fast scrolls.
+                        .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: gaugeProgress)
                         // Muted in the dark theme so the arc doesn't
                         // overpower the UI, fully opaque in the light one.
                         .opacity(isDark ? 0.5 : 1)
