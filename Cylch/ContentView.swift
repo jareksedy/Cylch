@@ -81,16 +81,25 @@ struct MenuBarView: View {
 
         Divider()
 
-        Button {
-            if viewModel.connected {
-                viewModel.stopStreaming()
-            } else {
-                viewModel.connect()
-            }
+        connectionSettingsMenu
+
+        Menu {
+            Toggle("Enabled", isOn: $viewModel.scheduleEnabled)
+
+            Divider()
+
+            scheduleTimeMenu(
+                "From: \(timeString(viewModel.scheduleStartTime))",
+                time: $viewModel.scheduleStartTime
+            )
+
+            scheduleTimeMenu(
+                "Until: \(timeString(viewModel.scheduleEndTime))",
+                time: $viewModel.scheduleEndTime
+            )
         } label: {
-            Label(viewModel.connected ? "Disconnect" : "Connect", image: viewModel.connected ? "link_horizontal_off" : "link_horizontal")
+            Label("Night Schedule", image: "moon_small")
         }
-        .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
         .labelStyle(.titleAndIcon)
 
         Divider()
@@ -121,6 +130,146 @@ struct MenuBarView: View {
             viewModel.onAppear()
         }
         .labelStyle(.titleAndIcon)
+    }
+
+    private var connectionSettingsMenu: some View {
+        Menu {
+            portMenu
+
+            Button {
+                viewModel.refreshPorts()
+            } label: {
+                Text("Refresh Ports")
+            }
+            .disabled(viewModel.connected)
+
+            Divider()
+
+            ledCountMenu
+
+            Divider()
+
+            Button {
+                if viewModel.connected {
+                    viewModel.stopStreaming()
+                } else {
+                    viewModel.connect()
+                }
+            } label: {
+                Label(
+                    viewModel.connected ? "Disconnect" : "Connect",
+                    image: viewModel.connected ? "link_horizontal_off" : "link_horizontal"
+                )
+            }
+            .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
+        } label: {
+            Label(
+                "Connection",
+                image: viewModel.connected ? "link_horizontal" : "link_horizontal_off"
+            )
+        }
+        .labelStyle(.titleAndIcon)
+    }
+
+    @ViewBuilder
+    private var portMenu: some View {
+        if viewModel.connected {
+            Button {} label: {
+                Text("Port: \(shortPortName(viewModel.selectedPort))")
+            }
+            .disabled(true)
+        } else if viewModel.availablePorts.isEmpty {
+            Button {} label: {
+                Text("No USB Serial Ports")
+            }
+            .disabled(true)
+        } else {
+            Menu {
+                ForEach(viewModel.availablePorts, id: \.self) { port in
+                    Toggle(shortPortName(port), isOn: Binding(
+                        get: { viewModel.selectedPort == port },
+                        set: { isSelected in
+                            if isSelected {
+                                viewModel.selectedPort = port
+                            }
+                        }
+                    ))
+                }
+            } label: {
+                Text("Port: \(shortPortName(viewModel.selectedPort))")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ledCountMenu: some View {
+        if viewModel.connected {
+            Button {} label: {
+                Text("LED count: \(viewModel.ledCount)")
+            }
+            .disabled(true)
+        } else {
+            Menu {
+                Button {
+                    viewModel.ledCount -= 1
+                } label: {
+                    Label("Decrease", systemImage: "minus.circle.fill")
+                }
+                .disabled(viewModel.ledCount <= 1)
+
+                Button {
+                    viewModel.ledCount += 1
+                } label: {
+                    Label("Increase", systemImage: "plus.circle.fill")
+                }
+                .disabled(viewModel.ledCount >= 300)
+            } label: {
+                Text("LED count: \(viewModel.ledCount)")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func scheduleTimeMenu(_ title: String, time: Binding<Date>) -> some View {
+        if viewModel.scheduleEnabled {
+            Menu {
+                Button {
+                    adjust(time, byMinutes: -30)
+                } label: {
+                    Label("30 Minutes Earlier", systemImage: "minus.circle.fill")
+                }
+
+                Button {
+                    adjust(time, byMinutes: 30)
+                } label: {
+                    Label("30 Minutes Later", systemImage: "plus.circle.fill")
+                }
+            } label: {
+                Text(title)
+            }
+        } else {
+            Button {} label: {
+                Text(title)
+            }
+            .disabled(true)
+        }
+    }
+
+    private func adjust(_ time: Binding<Date>, byMinutes minutes: Int) {
+        time.wrappedValue = Calendar.current.date(
+            byAdding: .minute,
+            value: minutes,
+            to: time.wrappedValue
+        ) ?? time.wrappedValue
+    }
+
+    private func timeString(_ time: Date) -> String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
+    private func shortPortName(_ port: String) -> String {
+        port.split(separator: "/").last.map(String.init) ?? port
     }
 
     /// A submenu with the 0–100% levels while enabled. NSMenu ignores
@@ -341,15 +490,15 @@ struct SettingsView: View {
 
 }
 
-/// Shared chrome for the toolbar popovers: a small accent icon, title, and
-/// compact content using the system typography.
+/// Popover chrome mirrors the main settings window: compact system type, a
+/// small accent icon, and enough empty space to keep the controls calm.
 private struct SettingsPopoverPanel<Content: View>: View {
     let title: String
     let imageName: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(imageName)
                     .renderingMode(.template)
@@ -359,23 +508,24 @@ private struct SettingsPopoverPanel<Content: View>: View {
                     .foregroundStyle(Color.accentColor)
 
                 Text(title)
-                    .font(.headline)
+                    .font(.system(size: 14, weight: .medium))
             }
             .padding(.leading, 2)
 
             content()
         }
         .padding(16)
-        .frame(width: 320, alignment: .leading)
+        .frame(width: 344, alignment: .leading)
+        .font(.system(size: 13))
     }
 }
 
-private struct SettingsRow<Content: View>: View {
+private struct PopoverRow<Content: View>: View {
     let label: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(spacing: 12) {
             Text(label)
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
@@ -383,48 +533,34 @@ private struct SettingsRow<Content: View>: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minHeight: 28)
+        .frame(minHeight: 36)
     }
 }
 
-private struct SettingsCard<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            content()
-        }
-    }
-}
-
-/// Capsule chrome shared by the custom popover controls — the same tint and
-/// hairline as the main window's capsules.
+/// The same quiet capsule tint used by the effect picker and color palette.
 private extension View {
     func controlCapsule() -> some View {
-        background(
-            Capsule()
-                .fill(Color.primary.opacity(0.04))
-                .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
-        )
+        background(Capsule().fill(Color.primary.opacity(0.04)))
     }
 }
 
 /// Small round icon button used inside capsule controls (refresh, ±),
 /// backed by template icons from the asset catalog.
 private struct GlyphButton: View {
-    let imageName: String
+    let systemName: String
+    var symbolSize: CGFloat = 24
     var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(imageName)
-                .renderingMode(.template)
+            Image(systemName: systemName)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: symbolSize, height: symbolSize)
+                .frame(width: 36, height: 36)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -441,19 +577,21 @@ private struct CapsuleStepper: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            GlyphButton(imageName: "remove_minus", isEnabled: value > range.lowerBound) {
+            GlyphButton(systemName: "minus.circle.fill", isEnabled: value > range.lowerBound) {
                 value = max(range.lowerBound, value - step)
             }
 
             Text("\(value)")
-                .font(.callout.weight(.medium))
+                .font(.system(size: 13, weight: .medium))
                 .monospacedDigit()
-                .frame(minWidth: 36)
+                .contentTransition(.numericText(value: Double(value)))
+                .frame(minWidth: 52)
 
-            GlyphButton(imageName: "add_plus", isEnabled: value < range.upperBound) {
+            GlyphButton(systemName: "plus.circle.fill", isEnabled: value < range.upperBound) {
                 value = min(range.upperBound, value + step)
             }
         }
+        .frame(minWidth: 120)
         .controlCapsule()
     }
 }
@@ -464,20 +602,25 @@ private struct TimeStepper: View {
     var isEnabled: Bool = true
 
     var body: some View {
-        HStack(spacing: 0) {
-            GlyphButton(imageName: "remove_minus", isEnabled: isEnabled) {
-                adjust(byMinutes: -30)
-            }
-
+        ZStack {
             Text(timeString)
-                .font(.callout.weight(.medium))
+                .font(.system(size: 14, weight: .medium))
                 .monospacedDigit()
-                .frame(minWidth: 48)
+                .frame(minWidth: 60)
 
-            GlyphButton(imageName: "add_plus", isEnabled: isEnabled) {
-                adjust(byMinutes: 30)
+            HStack(spacing: 0) {
+                GlyphButton(systemName: "minus.circle.fill", isEnabled: isEnabled) {
+                    adjust(byMinutes: -30)
+                }
+
+                Spacer(minLength: 60)
+
+                GlyphButton(systemName: "plus.circle.fill", isEnabled: isEnabled) {
+                    adjust(byMinutes: 30)
+                }
             }
         }
+        .frame(minWidth: 132, maxWidth: .infinity)
         .controlCapsule()
         .opacity(isEnabled ? 1 : 0.5)
     }
@@ -499,44 +642,19 @@ private struct ActionCapsuleButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.callout.weight(.semibold))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary.opacity(0.8)))
             .frame(maxWidth: .infinity)
-            .frame(height: 28)
+            .frame(height: 36)
             .contentShape(Capsule())
             .background {
                 if prominent {
                     Capsule().fill(Color.accentColor)
                 } else {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.06))
-                        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                    Capsule().fill(Color.primary.opacity(0.06))
                 }
             }
             .opacity(configuration.isPressed ? 0.7 : 1)
-    }
-}
-
-/// Status caption at the bottom of a popover: a small state dot that lights
-/// up in the given color while active, plus a quiet monospaced telemetry
-/// line matching the main window's type.
-private struct StatusFooter: View {
-    let isActive: Bool
-    let activeColor: Color
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Circle()
-                .fill(isActive ? activeColor : Color.secondary.opacity(0.4))
-                .frame(width: 6, height: 6)
-
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.leading, 2)
     }
 }
 
@@ -545,12 +663,16 @@ struct ConnectionPopoverView: View {
 
     var body: some View {
         SettingsPopoverPanel(title: "Connection", imageName: "link_horizontal") {
-            SettingsCard {
-                SettingsRow(label: "Port") {
-                    HStack(spacing: 6) {
+            VStack(spacing: 12) {
+                PopoverRow(label: "Port") {
+                    HStack(spacing: 8) {
                         portMenu
 
-                        GlyphButton(imageName: "arrows_reload", isEnabled: !viewModel.connected) {
+                        GlyphButton(
+                            systemName: "arrow.trianglehead.2.clockwise.rotate.90",
+                            symbolSize: 18,
+                            isEnabled: !viewModel.connected
+                        ) {
                             viewModel.refreshPorts()
                         }
                         .controlCapsule()
@@ -558,37 +680,41 @@ struct ConnectionPopoverView: View {
                     }
                 }
 
-                SettingsRow(label: "LEDs") {
+                PopoverRow(label: "LED count") {
                     CapsuleStepper(value: $viewModel.ledCount, range: 1...300)
+                        .disabled(viewModel.connected)
+                        .opacity(viewModel.connected ? 0.45 : 1)
+                }
+
+                Button {
+                    if viewModel.connected {
+                        viewModel.stopStreaming()
+                    } else {
+                        viewModel.connect()
+                    }
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(viewModel.connected ? "link_horizontal_off" : "link_horizontal")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 13, height: 13)
+
+                        Text(viewModel.connected ? "Disconnect" : "Connect")
+                    }
+                }
+                .buttonStyle(ActionCapsuleButtonStyle(prominent: !viewModel.connected))
+                .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
+                .opacity(!viewModel.connected && viewModel.selectedPort.isEmpty ? 0.45 : 1)
+
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 2)
                 }
             }
-
-            Button {
-                if viewModel.connected {
-                    viewModel.stopStreaming()
-                } else {
-                    viewModel.connect()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(viewModel.connected ? "link_horizontal_off" : "link_horizontal")
-                        .renderingMode(.template)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 13, height: 13)
-
-                    Text(viewModel.connected ? "Disconnect" : "Connect")
-                }
-            }
-            .buttonStyle(ActionCapsuleButtonStyle(prominent: !viewModel.connected))
-            .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
-            .opacity(!viewModel.connected && viewModel.selectedPort.isEmpty ? 0.45 : 1)
-
-            StatusFooter(
-                isActive: viewModel.connected,
-                activeColor: .green,
-                text: connectionSummary
-            )
         }
         .onAppear {
             viewModel.refreshPorts()
@@ -600,7 +726,7 @@ struct ConnectionPopoverView: View {
     private var portMenu: some View {
         Menu {
             if viewModel.availablePorts.isEmpty {
-                Button("No Ports") {}
+                Button("No USB Serial Ports") {}
                     .disabled(true)
             }
 
@@ -614,8 +740,8 @@ struct ConnectionPopoverView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Text(viewModel.selectedPort.isEmpty ? "No Port" : Self.shortPortName(viewModel.selectedPort))
-                    .font(.callout)
+                Text(viewModel.selectedPort.isEmpty ? "No USB Port" : Self.shortPortName(viewModel.selectedPort))
+                    .font(.system(size: 13))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
@@ -629,7 +755,7 @@ struct ConnectionPopoverView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 10)
-            .frame(height: 24)
+            .frame(height: 36)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -642,15 +768,6 @@ struct ConnectionPopoverView: View {
     private static func shortPortName(_ port: String) -> String {
         port.split(separator: "/").last.map(String.init) ?? port
     }
-
-    private var connectionSummary: String {
-        if viewModel.connected {
-            let portName = viewModel.selectedPort.split(separator: "/").last.map(String.init) ?? viewModel.selectedPort
-            return "Streaming to \(portName)"
-        }
-
-        return viewModel.selectedPort.isEmpty ? "No serial port selected" : "Ready to connect"
-    }
 }
 
 struct SchedulePopoverView: View {
@@ -658,28 +775,66 @@ struct SchedulePopoverView: View {
 
     var body: some View {
         SettingsPopoverPanel(title: "Night Schedule", imageName: "moon") {
-            SettingsCard {
-                SettingsRow(label: "Enabled") {
+            VStack(spacing: 16) {
+                HStack(spacing: 12) {
+                    Text("Enabled")
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
                     Toggle("", isOn: $viewModel.scheduleEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
+                        .tint(.accentColor)
+                        .fixedSize()
                 }
+                .padding(.leading, 12)
+                // A standard macOS switch is about 24 points high inside the
+                // 36-point capsule: six points above and below. Match that on
+                // its exposed trailing edge as well.
+                .padding(.trailing, 6)
+                .frame(height: 36)
+                .controlCapsule()
 
-                SettingsRow(label: "From") {
-                    TimeStepper(time: $viewModel.scheduleStartTime, isEnabled: viewModel.scheduleEnabled)
-                }
+                HStack(alignment: .top, spacing: 16) {
+                    scheduleTimeField(
+                        caption: "From",
+                        imageName: "moon",
+                        time: $viewModel.scheduleStartTime
+                    )
 
-                SettingsRow(label: "Until") {
-                    TimeStepper(time: $viewModel.scheduleEndTime, isEnabled: viewModel.scheduleEnabled)
+                    scheduleTimeField(
+                        caption: "Until",
+                        imageName: "sun",
+                        time: $viewModel.scheduleEndTime
+                    )
                 }
             }
-
-            StatusFooter(
-                isActive: viewModel.scheduleActive,
-                activeColor: .indigo,
-                text: viewModel.scheduleSummary
-            )
         }
+    }
+
+    private func scheduleTimeField(
+        caption: String,
+        imageName: String,
+        time: Binding<Date>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 5) {
+                Image(imageName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                    .foregroundStyle(Color.accentColor)
+
+                Text(caption)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            TimeStepper(time: time, isEnabled: viewModel.scheduleEnabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -869,7 +1024,7 @@ final class SettingsViewModel: ObservableObject {
 
     /// Prefers a USB serial adapter (e.g. `/dev/cu.usbserial-XXXX`) when present.
     private static func preferredPort(in ports: [String]) -> String? {
-        ports.first { $0.localizedCaseInsensitiveContains("usbserial") }
+        ports.first { $0.lowercased().contains("usbserial") } ?? ports.first
     }
 
     private static func discoverSerialPorts() -> [String] {
@@ -886,12 +1041,33 @@ final class SettingsViewModel: ObservableObject {
                 }
             }
 
-            if name.hasPrefix("cu.") {
+            if isSupportedUSBSerialDeviceName(name) {
                 ports.append("/dev/\(name)")
             }
         }
 
         return ports.sorted()
+    }
+
+    /// `/dev/cu.*` also contains virtual Bluetooth and system console
+    /// endpoints. Keep the established names used by USB CDC devices and the
+    /// common FTDI, WCH/CH34x, Silicon Labs/CP210x adapter drivers so an
+    /// obviously incompatible endpoint can never be selected by mistake.
+    private static func isSupportedUSBSerialDeviceName(_ name: String) -> Bool {
+        let normalizedName = name.lowercased()
+        guard normalizedName.hasPrefix("cu.") else { return false }
+
+        if normalizedName.contains("usbserial") { return true }
+        if normalizedName.contains("usbmodem") { return true }
+        if normalizedName.contains("usb-to-serial") { return true }
+        if normalizedName.contains("usb_to_uart") { return true }
+        if normalizedName.contains("usbtouart") { return true }
+        if normalizedName.contains("wchusbserial") { return true }
+        if normalizedName.contains("slab_usbtouart") { return true }
+        if normalizedName.contains("cp210") { return true }
+        if normalizedName.contains("ch340") { return true }
+        if normalizedName.contains("ch341") { return true }
+        return normalizedName.contains("ftdi")
     }
 }
 
