@@ -341,9 +341,8 @@ struct SettingsView: View {
 
 }
 
-/// Shared chrome for the toolbar popovers, in the app's own voice: an
-/// accent template icon with an expanded-width title (echoing the knob
-/// labels), then the content — no window-style divider chrome.
+/// Shared chrome for the toolbar popovers: a small accent icon, title, and
+/// compact content using the system typography.
 private struct SettingsPopoverPanel<Content: View>: View {
     let title: String
     let imageName: String
@@ -360,38 +359,14 @@ private struct SettingsPopoverPanel<Content: View>: View {
                     .foregroundStyle(Color.accentColor)
 
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold).width(.expanded))
+                    .font(.headline)
             }
             .padding(.leading, 2)
 
             content()
         }
         .padding(16)
-        .font(.system(size: 13))
         .frame(width: 320, alignment: .leading)
-    }
-}
-
-/// The controls live on a "card" tinted and stroked exactly like the effect
-/// picker and palette capsules in the main window.
-private struct SettingsCard<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            content()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                )
-        )
     }
 }
 
@@ -402,7 +377,6 @@ private struct SettingsRow<Content: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text(label)
-                .font(.system(size: 12).width(.expanded))
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
 
@@ -410,6 +384,136 @@ private struct SettingsRow<Content: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(minHeight: 28)
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            content()
+        }
+    }
+}
+
+/// Capsule chrome shared by the custom popover controls — the same tint and
+/// hairline as the main window's capsules.
+private extension View {
+    func controlCapsule() -> some View {
+        background(
+            Capsule()
+                .fill(Color.primary.opacity(0.04))
+                .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+        )
+    }
+}
+
+/// Small round icon button used inside capsule controls (refresh, ±),
+/// backed by template icons from the asset catalog.
+private struct GlyphButton: View {
+    let imageName: String
+    var isEnabled: Bool = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(imageName)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 12, height: 12)
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.35)
+    }
+}
+
+/// Custom capsule stepper: minus / expanded value / plus.
+private struct CapsuleStepper: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    var step: Int = 1
+
+    var body: some View {
+        HStack(spacing: 0) {
+            GlyphButton(imageName: "remove_minus", isEnabled: value > range.lowerBound) {
+                value = max(range.lowerBound, value - step)
+            }
+
+            Text("\(value)")
+                .font(.callout.weight(.medium))
+                .monospacedDigit()
+                .frame(minWidth: 36)
+
+            GlyphButton(imageName: "add_plus", isEnabled: value < range.upperBound) {
+                value = min(range.upperBound, value + step)
+            }
+        }
+        .controlCapsule()
+    }
+}
+
+/// Custom time control: minus / HH:mm / plus, stepping by half an hour.
+private struct TimeStepper: View {
+    @Binding var time: Date
+    var isEnabled: Bool = true
+
+    var body: some View {
+        HStack(spacing: 0) {
+            GlyphButton(imageName: "remove_minus", isEnabled: isEnabled) {
+                adjust(byMinutes: -30)
+            }
+
+            Text(timeString)
+                .font(.callout.weight(.medium))
+                .monospacedDigit()
+                .frame(minWidth: 48)
+
+            GlyphButton(imageName: "add_plus", isEnabled: isEnabled) {
+                adjust(byMinutes: 30)
+            }
+        }
+        .controlCapsule()
+        .opacity(isEnabled ? 1 : 0.5)
+    }
+
+    private var timeString: String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
+    private func adjust(byMinutes minutes: Int) {
+        time = Calendar.current.date(byAdding: .minute, value: minutes, to: time) ?? time
+    }
+}
+
+/// Full-width capsule action button: accent-filled when prominent, quietly
+/// tinted otherwise.
+private struct ActionCapsuleButtonStyle: ButtonStyle {
+    var prominent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary.opacity(0.8)))
+            .frame(maxWidth: .infinity)
+            .frame(height: 28)
+            .contentShape(Capsule())
+            .background {
+                if prominent {
+                    Capsule().fill(Color.accentColor)
+                } else {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.06))
+                        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                }
+            }
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
@@ -428,7 +532,7 @@ private struct StatusFooter: View {
                 .frame(width: 6, height: 6)
 
             Text(text)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -444,36 +548,18 @@ struct ConnectionPopoverView: View {
             SettingsCard {
                 SettingsRow(label: "Port") {
                     HStack(spacing: 6) {
-                        Picker("Port", selection: $viewModel.selectedPort) {
-                            if viewModel.availablePorts.isEmpty {
-                                Text("No Ports").tag("")
-                            }
+                        portMenu
 
-                            ForEach(viewModel.availablePorts, id: \.self) { port in
-                                Text(port).tag(port)
-                            }
-                        }
-                        .labelsHidden()
-                        .disabled(viewModel.connected)
-
-                        Button {
+                        GlyphButton(imageName: "arrows_reload", isEnabled: !viewModel.connected) {
                             viewModel.refreshPorts()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
                         }
+                        .controlCapsule()
                         .help("Refresh Ports")
                     }
                 }
 
                 SettingsRow(label: "LEDs") {
-                    HStack(spacing: 8) {
-                        Text("\(viewModel.ledCount)")
-                            .monospacedDigit()
-                            .frame(minWidth: 30, alignment: .leading)
-
-                        Stepper("LED Count", value: $viewModel.ledCount, in: 1...300)
-                            .labelsHidden()
-                    }
+                    CapsuleStepper(value: $viewModel.ledCount, range: 1...300)
                 }
             }
 
@@ -484,10 +570,19 @@ struct ConnectionPopoverView: View {
                     viewModel.connect()
                 }
             } label: {
-                Label(viewModel.connected ? "Disconnect" : "Connect", image: viewModel.connected ? "link_horizontal_off" : "link_horizontal")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 6) {
+                    Image(viewModel.connected ? "link_horizontal_off" : "link_horizontal")
+                        .renderingMode(.template)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 13, height: 13)
+
+                    Text(viewModel.connected ? "Disconnect" : "Connect")
+                }
             }
+            .buttonStyle(ActionCapsuleButtonStyle(prominent: !viewModel.connected))
             .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
+            .opacity(!viewModel.connected && viewModel.selectedPort.isEmpty ? 0.45 : 1)
 
             StatusFooter(
                 isActive: viewModel.connected,
@@ -498,6 +593,54 @@ struct ConnectionPopoverView: View {
         .onAppear {
             viewModel.refreshPorts()
         }
+    }
+
+    /// Custom capsule menu instead of the native pop-up button: shows the
+    /// short port name, opens a checkmarked menu of discovered ports.
+    private var portMenu: some View {
+        Menu {
+            if viewModel.availablePorts.isEmpty {
+                Button("No Ports") {}
+                    .disabled(true)
+            }
+
+            ForEach(viewModel.availablePorts, id: \.self) { port in
+                Toggle(isOn: Binding(
+                    get: { viewModel.selectedPort == port },
+                    set: { _ in viewModel.selectedPort = port }
+                )) {
+                    Text(Self.shortPortName(port))
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(viewModel.selectedPort.isEmpty ? "No Port" : Self.shortPortName(viewModel.selectedPort))
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 4)
+
+                Image("unfold_more")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .controlCapsule()
+        .disabled(viewModel.connected)
+        .opacity(viewModel.connected ? 0.5 : 1)
+    }
+
+    private static func shortPortName(_ port: String) -> String {
+        port.split(separator: "/").last.map(String.init) ?? port
     }
 
     private var connectionSummary: String {
@@ -517,20 +660,17 @@ struct SchedulePopoverView: View {
         SettingsPopoverPanel(title: "Night Schedule", imageName: "moon") {
             SettingsCard {
                 SettingsRow(label: "Enabled") {
-                    Toggle("Night schedule", isOn: $viewModel.scheduleEnabled)
+                    Toggle("", isOn: $viewModel.scheduleEnabled)
                         .labelsHidden()
+                        .toggleStyle(.switch)
                 }
 
                 SettingsRow(label: "From") {
-                    DatePicker("From", selection: $viewModel.scheduleStartTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .disabled(!viewModel.scheduleEnabled)
+                    TimeStepper(time: $viewModel.scheduleStartTime, isEnabled: viewModel.scheduleEnabled)
                 }
 
                 SettingsRow(label: "Until") {
-                    DatePicker("Until", selection: $viewModel.scheduleEndTime, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .disabled(!viewModel.scheduleEnabled)
+                    TimeStepper(time: $viewModel.scheduleEndTime, isEnabled: viewModel.scheduleEnabled)
                 }
             }
 

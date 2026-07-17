@@ -185,21 +185,24 @@ struct CircularKnob: View {
                     // narrow glyphs ("1") inside fixed cells, which makes the
                     // optical gap to the % sign vary (51% vs 56%). Natural
                     // kerning keeps the last digit snug against % instead.
-                    Text("100%")
-                        .hidden()
-                        .overlay(alignment: .trailing) {
-                            Text("\(Int(normalizedValue * 100))%")
-                                .fixedSize()
-                                // Odometer-style rolling digits: they spin
-                                // up as the value grows and down as it
-                                // shrinks. The explicit transaction replaces
-                                // whatever animation the caller used (or the
-                                // suppressed layout one), so the roll speed
-                                // is consistent everywhere.
-                                .contentTransition(.numericText(value: normalizedValue))
-                                .transaction { $0.animation = .snappy(duration: 0.05) }
-                        }
-                        .font(.system(size: 12, weight: .semibold).width(.expanded))
+                    // ZStack alignment rather than overlay+fixedSize: the
+                    // latter mislaid the value on the first layout pass in
+                    // previews until the first change re-laid it out.
+                    ZStack(alignment: .trailing) {
+                        Text("100%")
+                            .hidden()
+
+                        Text("\(Int(normalizedValue * 100))%")
+                            // Odometer-style rolling digits: they spin up as
+                            // the value grows and down as it shrinks. The
+                            // explicit transaction replaces whatever
+                            // animation the caller used, so the roll speed
+                            // is consistent everywhere and layout never
+                            // inherits the scroll handler's animation.
+                            .contentTransition(.numericText(value: normalizedValue))
+                            .transaction { $0.animation = .snappy(duration: 0.05) }
+                    }
+                    .font(.system(size: 12, weight: .semibold).width(.expanded))
                     // Optical centering: nudge the digits a hair left so the
                     // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
