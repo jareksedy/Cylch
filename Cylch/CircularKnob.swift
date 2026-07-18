@@ -264,12 +264,14 @@ struct CircularKnob: View {
                     // Flatten the rolling digits before applying one accent
                     // glow, so overlapping transition snapshots do not each
                     // receive their own shadow in the light theme.
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(isEnabled ? Color.accentColor : trackColor)
                     .compositingGroup()
                     .blendMode(.normal)
                     .opacity(isDark ? 0.9 : 1)
                     .shadow(
-                        color: Color.accentColor.opacity(isDark ? 0.65 : 0.32),
+                        color: isEnabled
+                            ? Color.accentColor.opacity(isDark ? 0.65 : 0.32)
+                            : .clear,
                         radius: isDark ? 4 : 2.5
                     )
 
@@ -279,9 +281,11 @@ struct CircularKnob: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 13, height: 13)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(isEnabled ? Color.accentColor : trackColor)
                             .shadow(
-                                color: Color.accentColor.opacity(isDark ? 0.72 : 0.36),
+                                color: isEnabled
+                                    ? Color.accentColor.opacity(isDark ? 0.72 : 0.36)
+                                    : .clear,
                                 radius: isDark ? 4 : 2.5
                             )
                     }

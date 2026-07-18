@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 
 /// AppKit owns the status item so Settings can be presented by a real
@@ -15,6 +16,12 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private let settingsPopover = NSPopover()
+    private var connectionStateObservation: AnyCancellable?
+    private var liveConnectionItem: NSMenuItem?
+    private var livePortItem: NSMenuItem?
+    private var liveRefreshItem: NSMenuItem?
+    private var liveLEDCountItem: NSMenuItem?
+    private var liveConnectItem: NSMenuItem?
 
     init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -26,6 +33,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         menu.delegate = self
         statusItem.menu = menu
         rebuildMenu()
+        observeConnectionState()
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -34,6 +42,10 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         statusItem.button?.highlight(false)
+    }
+
+    func popoverDidShow(_ notification: Notification) {
+        makeSettingsPopoverKey()
     }
 
     private func configureStatusItem() {
@@ -100,16 +112,22 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private func connectionItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Connection", action: nil, keyEquivalent: "")
         item.image = assetImage(viewModel.connected && !viewModel.disconnecting ? "link_horizontal" : "link_horizontal_off")
+        liveConnectionItem = item
 
         let submenu = makeMenu(title: "Connection")
-        submenu.addItem(portItem())
+        let portItem = portItem()
+        livePortItem = portItem
+        submenu.addItem(portItem)
 
         let refreshItem = actionItem("Refresh Ports", action: #selector(refreshPorts))
         refreshItem.isEnabled = !viewModel.connected && !viewModel.disconnecting
+        liveRefreshItem = refreshItem
         submenu.addItem(refreshItem)
 
         submenu.addItem(.separator())
-        submenu.addItem(ledCountItem())
+        let ledCountItem = ledCountItem()
+        liveLEDCountItem = ledCountItem
+        submenu.addItem(ledCountItem)
         submenu.addItem(.separator())
 
         let connectItem = actionItem(
@@ -118,10 +136,58 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             action: #selector(toggleConnection)
         )
         connectItem.isEnabled = !viewModel.disconnecting && (viewModel.connected || !viewModel.selectedPort.isEmpty)
+        liveConnectItem = connectItem
         submenu.addItem(connectItem)
 
         item.submenu = submenu
         return item
+    }
+
+    private func observeConnectionState() {
+        connectionStateObservation = Publishers.CombineLatest(
+            viewModel.$connected,
+            viewModel.$disconnecting
+        )
+        .removeDuplicates { previous, current in
+            previous.0 == current.0 && previous.1 == current.1
+        }
+        .sink { [weak self] _, _ in
+            // @Published emits before the stored property finishes changing.
+            // Coalesce connected + disconnecting into the next main-loop turn
+            // so the menu reads one final, internally consistent state.
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshLiveConnectionItems()
+            }
+        }
+    }
+
+    private func refreshLiveConnectionItems() {
+        let connected = viewModel.connected
+        let disconnecting = viewModel.disconnecting
+
+        liveConnectionItem?.image = assetImage(
+            connected && !disconnecting ? "link_horizontal" : "link_horizontal_off"
+        )
+        liveRefreshItem?.isEnabled = !connected && !disconnecting
+
+        if let livePortItem {
+            updateMenuItem(livePortItem, from: portItem())
+        }
+        if let liveLEDCountItem {
+            updateMenuItem(liveLEDCountItem, from: ledCountItem())
+        }
+
+        liveConnectItem?.title = disconnecting ? "Fading Out…" : connected ? "Disconnect" : "Connect"
+        liveConnectItem?.image = assetImage(
+            connected || disconnecting ? "link_horizontal_off" : "link_horizontal"
+        )
+        liveConnectItem?.isEnabled = !disconnecting && (connected || !viewModel.selectedPort.isEmpty)
+    }
+
+    private func updateMenuItem(_ item: NSMenuItem, from replacement: NSMenuItem) {
+        item.title = replacement.title
+        item.isEnabled = replacement.isEnabled
+        item.submenu = replacement.submenu
     }
 
     private func portItem() -> NSMenuItem {
@@ -311,18 +377,35 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             return
         }
 
-        // Let NSMenu finish dismissing before presenting another transient
-        // window from the same status item.
+        // Let NSMenu finish dismissing, then give app activation one more run
+        // loop turn before creating the popover. Showing it in the same turn
+        // as activate() can leave its system material in the lighter inactive
+        // state until the user clicks the window.
         DispatchQueue.main.async { [weak self, weak button] in
             guard let self, let button else { return }
             NSApplication.shared.activate(ignoringOtherApps: true)
-            button.highlight(true)
-            self.settingsPopover.show(
-                relativeTo: button.bounds,
-                of: button,
-                preferredEdge: .minY
-            )
+
+            DispatchQueue.main.async { [weak self, weak button] in
+                guard let self, let button else { return }
+                button.highlight(true)
+                self.settingsPopover.show(
+                    relativeTo: button.bounds,
+                    of: button,
+                    preferredEdge: .minY
+                )
+                self.makeSettingsPopoverKey()
+            }
         }
+    }
+
+    private func makeSettingsPopoverKey() {
+        guard settingsPopover.isShown,
+              let window = settingsPopover.contentViewController?.view.window else {
+            return
+        }
+
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        window.makeKey()
     }
 
     @objc private func refreshPorts() {
