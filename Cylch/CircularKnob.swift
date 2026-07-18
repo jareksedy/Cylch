@@ -179,9 +179,9 @@ struct CircularKnob: View {
 
                 // Fine analog-dial markers form a separate ring just inside
                 // the gauge, with their outer tips aligned to one radius.
-                // Twenty divisions keep it calm; every fifth establishes rhythm.
-                ForEach(0 ..< 20, id: \.self) { index in
-                    let isMajorMarker = index.isMultiple(of: 5)
+                // Sixteen divisions keep it calm; every fourth establishes rhythm.
+                ForEach(0 ..< 16, id: \.self) { index in
+                    let isMajorMarker = index.isMultiple(of: 4)
                     let markerHeight: CGFloat = isMajorMarker ? 5 : 3
 
                     Capsule()
@@ -201,7 +201,7 @@ struct CircularKnob: View {
                         .offset(
                             y: -(size / 2 - trackPadding - 4 - markerHeight / 2)
                         )
-                        .rotationEffect(.degrees(Double(index) * 18))
+                        .rotationEffect(.degrees(Double(index) * 22.5))
                 }
 
                 // Engraved groove: a light edge peeking out just below the
