@@ -75,14 +75,14 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             title: "Brightness: \(Int(viewModel.brightness))%",
             imageName: "brightness",
             value: viewModel.brightness,
-            isEnabled: viewModel.connected,
+            isEnabled: viewModel.connected && !viewModel.disconnecting,
             action: #selector(setBrightness)
         ))
         menu.addItem(levelItem(
             title: "Speed: \(Int(viewModel.speed))%",
             imageName: "speed",
             value: viewModel.speed,
-            isEnabled: viewModel.connected && viewModel.selectedEffect != .static,
+            isEnabled: viewModel.connected && !viewModel.disconnecting && viewModel.selectedEffect != .static,
             action: #selector(setSpeed)
         ))
         menu.addItem(.separator())
@@ -99,13 +99,13 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     private func connectionItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Connection", action: nil, keyEquivalent: "")
-        item.image = assetImage(viewModel.connected ? "link_horizontal" : "link_horizontal_off")
+        item.image = assetImage(viewModel.connected && !viewModel.disconnecting ? "link_horizontal" : "link_horizontal_off")
 
         let submenu = makeMenu(title: "Connection")
         submenu.addItem(portItem())
 
         let refreshItem = actionItem("Refresh Ports", action: #selector(refreshPorts))
-        refreshItem.isEnabled = !viewModel.connected
+        refreshItem.isEnabled = !viewModel.connected && !viewModel.disconnecting
         submenu.addItem(refreshItem)
 
         submenu.addItem(.separator())
@@ -113,11 +113,11 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         submenu.addItem(.separator())
 
         let connectItem = actionItem(
-            viewModel.connected ? "Disconnect" : "Connect",
-            image: assetImage(viewModel.connected ? "link_horizontal_off" : "link_horizontal"),
+            viewModel.disconnecting ? "Fading Out…" : viewModel.connected ? "Disconnect" : "Connect",
+            image: assetImage(viewModel.connected || viewModel.disconnecting ? "link_horizontal_off" : "link_horizontal"),
             action: #selector(toggleConnection)
         )
-        connectItem.isEnabled = viewModel.connected || !viewModel.selectedPort.isEmpty
+        connectItem.isEnabled = !viewModel.disconnecting && (viewModel.connected || !viewModel.selectedPort.isEmpty)
         submenu.addItem(connectItem)
 
         item.submenu = submenu
@@ -343,7 +343,9 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     }
 
     @objc private func toggleConnection() {
-        if viewModel.connected {
+        if viewModel.disconnecting {
+            return
+        } else if viewModel.connected {
             viewModel.stopStreaming()
         } else {
             viewModel.connect()

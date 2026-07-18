@@ -12,6 +12,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController?
+    private var waitingForFadeOut = false
 
     static func main() {
         if getenv("XCODE_RUNNING_FOR_PREVIEWS") != nil {
@@ -30,6 +31,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let viewModel = SettingsViewModel.shared
         viewModel.autoConnectOnLaunch()
         menuBarController = MenuBarController(viewModel: viewModel)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !waitingForFadeOut else { return .terminateLater }
+
+        let startedFadeOut = SettingsViewModel.shared.fadeOutForTermination { [weak self, weak sender] in
+            self?.waitingForFadeOut = false
+            sender?.reply(toApplicationShouldTerminate: true)
+        }
+
+        guard startedFadeOut else { return .terminateNow }
+        waitingForFadeOut = true
+        return .terminateLater
     }
 }
 

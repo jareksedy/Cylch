@@ -245,11 +245,11 @@ struct SettingsView: View {
                 .disabled(viewModel.selectedEffect == .static)
                 .help("Speed")
         }
-        .disabled(!viewModel.connected)
+        .disabled(!viewModel.connected || viewModel.disconnecting)
     }
 
     private var colorPalette: some View {
-        let isInactive = viewModel.selectedEffect == .rainbow || !viewModel.connected
+        let isInactive = viewModel.selectedEffect == .rainbow || !viewModel.connected || viewModel.disconnecting
 
         return HStack(spacing: 0) {
             ForEach(LEDColor.palette) { ledColor in
@@ -301,7 +301,7 @@ struct SettingsView: View {
         // and bottom edges.
         .padding(.horizontal, -2)
         .background(Capsule().fill(Color.primary.opacity(0.04)))
-        .disabled(!viewModel.connected)
+        .disabled(!viewModel.connected || viewModel.disconnecting)
         .opacity(isInactive ? 0.45 : 1)
         .saturation(isInactive ? 0.25 : 1)
     }
@@ -505,25 +505,27 @@ struct ConnectionPopoverView: View {
                 }
 
                 Button {
-                    if viewModel.connected {
+                    if viewModel.disconnecting {
+                        return
+                    } else if viewModel.connected {
                         viewModel.stopStreaming()
                     } else {
                         viewModel.connect()
                     }
                 } label: {
                     HStack(spacing: 7) {
-                        Image(viewModel.connected ? "link_horizontal_off" : "link_horizontal")
+                        Image(viewModel.connected || viewModel.disconnecting ? "link_horizontal_off" : "link_horizontal")
                             .renderingMode(.template)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 13, height: 13)
 
-                        Text(viewModel.connected ? "Disconnect" : "Connect")
+                        Text(viewModel.disconnecting ? "Fading Out…" : viewModel.connected ? "Disconnect" : "Connect")
                     }
                 }
                 .buttonStyle(ActionCapsuleButtonStyle(prominent: !viewModel.connected))
-                .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
-                .opacity(!viewModel.connected && viewModel.selectedPort.isEmpty ? 0.45 : 1)
+                .disabled(viewModel.disconnecting || (!viewModel.connected && viewModel.selectedPort.isEmpty))
+                .opacity(viewModel.disconnecting || (!viewModel.connected && viewModel.selectedPort.isEmpty) ? 0.45 : 1)
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
@@ -718,6 +720,7 @@ final class SettingsViewModel: ObservableObject {
         didSet { persistSettings() }
     }
     @Published var connected: Bool = false
+    @Published private(set) var disconnecting: Bool = false
     @Published var availablePorts: [String] = []
     @Published var errorMessage: String?
     @Published var scheduleEnabled: Bool = false {
@@ -749,6 +752,10 @@ final class SettingsViewModel: ObservableObject {
     private var connectionPreference: Bool
     private let controller = AdalightController()
     private var scheduleTask: Task<Void, Never>?
+    private var preserveReconnectPreferenceDuringFade = false
+    private var disconnectionCompletions: [() -> Void] = []
+
+    private static let lightTransitionDuration: TimeInterval = 0.5
 
     convenience init() {
         self.init(settingsStore: .shared)
@@ -848,6 +855,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func connect() {
+        guard !disconnecting else { return }
+
         guard !selectedPort.isEmpty else {
             errorMessage = "No serial port selected."
             return
@@ -856,20 +865,67 @@ final class SettingsViewModel: ObservableObject {
         errorMessage = nil
         connectionPreference = true
         persistSettings()
-        controller.start(port: selectedPort, initialConfig: currentConfig)
+        controller.start(
+            port: selectedPort,
+            initialConfig: currentConfig,
+            fadeInDuration: Self.lightTransitionDuration
+        )
     }
 
     func stopStreaming() {
+        guard connected else { return }
+
         connectionPreference = false
         persistSettings()
-        controller.stop()
-        paused = false
+        beginFadeOut(preservingReconnectPreference: false)
+    }
+
+    /// Starts the same graceful shutdown used by Disconnect, but retains the
+    /// connected preference so a strip that was active before Quit can be
+    /// restored on the next launch.
+    @discardableResult
+    func fadeOutForTermination(completion: @escaping () -> Void) -> Bool {
+        guard connected || disconnecting else { return false }
+
+        disconnectionCompletions.append(completion)
+        if !disconnecting {
+            beginFadeOut(preservingReconnectPreference: true)
+        }
+        return true
+    }
+
+    private func beginFadeOut(preservingReconnectPreference: Bool) {
+        guard connected, !disconnecting else { return }
+
+        preserveReconnectPreferenceDuringFade = preservingReconnectPreference
+        disconnecting = true
+        controller.fadeOutAndStop(duration: Self.lightTransitionDuration)
     }
 
     private func connectionStateDidChange(_ isConnected: Bool) {
         connected = isConnected
-        connectionPreference = isConnected
+
+        if isConnected {
+            connectionPreference = true
+        } else if !preserveReconnectPreferenceDuringFade {
+            connectionPreference = false
+        }
+
+        guard !isConnected else {
+            persistSettings()
+            return
+        }
+
+        disconnecting = false
+        preserveReconnectPreferenceDuringFade = false
+        if paused {
+            paused = false
+        }
         persistSettings()
+
+        let completions = disconnectionCompletions
+        disconnectionCompletions.removeAll()
+        completions.forEach { $0() }
     }
 
     private func persistSettings() {
@@ -890,7 +946,10 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private func pushConfig() {
-        controller.updateConfig(currentConfig)
+        controller.updateConfig(
+            currentConfig,
+            visualTransitionDuration: Self.lightTransitionDuration
+        )
     }
 
     private var currentConfig: StreamConfig {
@@ -1007,8 +1066,33 @@ final class AdalightController {
     var onError: (@MainActor (String) -> Void)?
 
     private struct StreamState {
+        struct FadeIn {
+            let runGeneration: Int
+            let startedAtNanoseconds: UInt64
+            let durationNanoseconds: UInt64
+        }
+
+        struct FadeOut {
+            let runGeneration: Int
+            let startedAtNanoseconds: UInt64
+            let durationNanoseconds: UInt64
+            let initialConfig: StreamConfig
+            let initialFrame: [UInt8]?
+        }
+
+        struct VisualTransition {
+            let runGeneration: Int
+            let startedAtNanoseconds: UInt64
+            let durationNanoseconds: UInt64
+            let fromFrame: [UInt8]
+        }
+
         var config = StreamConfig(brightness: 75, speed: 25, ledCount: 65)
         var generation = 0
+        var lastFrame: [UInt8]?
+        var fadeIn: FadeIn?
+        var fadeOut: FadeOut?
+        var visualTransition: VisualTransition?
     }
 
     // Swift-native lock rather than NSLock: the Xcode previews JIT
@@ -1017,14 +1101,48 @@ final class AdalightController {
 
     // Synchronous and lock-based so UI interactions hand the streaming
     // thread a new config without spawning tasks or hopping executors.
-    func updateConfig(_ config: StreamConfig) {
-        state.withLock { $0.config = config }
+    func updateConfig(_ config: StreamConfig, visualTransitionDuration: TimeInterval = 0) {
+        let durationNanoseconds = UInt64(max(0, visualTransitionDuration) * 1_000_000_000)
+
+        state.withLock { state in
+            let effectChanged = state.config.effect != config.effect
+            let staticColorChanged = state.config.staticColor.name != config.staticColor.name
+                && (state.config.effect == .static || config.effect == .static)
+
+            if effectChanged || staticColorChanged {
+                if durationNanoseconds > 0,
+                   state.fadeOut == nil,
+                   let lastFrame = state.lastFrame {
+                    state.visualTransition = StreamState.VisualTransition(
+                        runGeneration: state.generation,
+                        startedAtNanoseconds: DispatchTime.now().uptimeNanoseconds,
+                        durationNanoseconds: durationNanoseconds,
+                        fromFrame: lastFrame
+                    )
+                } else {
+                    state.visualTransition = nil
+                }
+            }
+
+            state.config = config
+        }
     }
 
-    func start(port: String, initialConfig: StreamConfig) {
+    func start(port: String, initialConfig: StreamConfig, fadeInDuration: TimeInterval = 0) {
+        let fadeInNanoseconds = UInt64(max(0, fadeInDuration) * 1_000_000_000)
         let runGeneration = state.withLock { state in
             state.generation += 1
             state.config = initialConfig
+            state.lastFrame = nil
+            state.fadeIn = fadeInNanoseconds > 0 && !initialConfig.lightsOff && initialConfig.brightness > 0
+                ? StreamState.FadeIn(
+                    runGeneration: state.generation,
+                    startedAtNanoseconds: DispatchTime.now().uptimeNanoseconds,
+                    durationNanoseconds: fadeInNanoseconds
+                )
+                : nil
+            state.fadeOut = nil
+            state.visualTransition = nil
             return state.generation
         }
 
@@ -1038,8 +1156,48 @@ final class AdalightController {
         }
     }
 
-    func stop() {
-        state.withLock { $0.generation += 1 }
+    func fadeOutAndStop(duration: TimeInterval) {
+        let durationNanoseconds = UInt64(max(0, duration) * 1_000_000_000)
+        let shouldStopImmediately = state.withLock { state -> Bool in
+            guard state.fadeOut == nil else { return false }
+
+            if durationNanoseconds == 0 || state.config.lightsOff || state.config.brightness <= 0 {
+                return true
+            }
+
+            var initialConfig = state.config
+            if let fadeIn = state.fadeIn,
+               fadeIn.runGeneration == state.generation {
+                let elapsed = DispatchTime.now().uptimeNanoseconds - fadeIn.startedAtNanoseconds
+                let progress = min(1, Double(elapsed) / Double(fadeIn.durationNanoseconds))
+                initialConfig.brightness *= Self.smoothStep(progress)
+            }
+
+            state.fadeIn = nil
+            state.fadeOut = StreamState.FadeOut(
+                runGeneration: state.generation,
+                startedAtNanoseconds: DispatchTime.now().uptimeNanoseconds,
+                durationNanoseconds: durationNanoseconds,
+                initialConfig: initialConfig,
+                initialFrame: state.lastFrame
+            )
+            state.visualTransition = nil
+            return false
+        }
+
+        if shouldStopImmediately {
+            stopImmediately()
+        }
+    }
+
+    private func stopImmediately() {
+        state.withLock { state in
+            state.generation += 1
+            state.lastFrame = nil
+            state.fadeIn = nil
+            state.fadeOut = nil
+            state.visualTransition = nil
+        }
 
         Task { @MainActor [onConnectedChanged] in
             onConnectedChanged?(false)
@@ -1050,12 +1208,29 @@ final class AdalightController {
         state.withLock { $0.generation == runGeneration }
     }
 
-    private func currentConfig() -> StreamConfig {
-        state.withLock { $0.config }
+    private func streamSnapshot() -> (
+        config: StreamConfig,
+        fadeIn: StreamState.FadeIn?,
+        fadeOut: StreamState.FadeOut?,
+        visualTransition: StreamState.VisualTransition?
+    ) {
+        state.withLock { ($0.config, $0.fadeIn, $0.fadeOut, $0.visualTransition) }
+    }
+
+    private func recordLastFrame(_ frame: [UInt8], for runGeneration: Int) {
+        state.withLock { state in
+            guard state.generation == runGeneration else { return }
+            state.lastFrame = frame
+        }
+    }
+
+    nonisolated private static func smoothStep(_ progress: Double) -> Double {
+        let clamped = min(1, max(0, progress))
+        return clamped * clamped * (3 - 2 * clamped)
     }
 
     // Delivers a callback on the main actor, dropping it if this streaming
-    // run has been superseded by a newer start()/stop() in the meantime.
+    // run has been superseded by a newer start()/fadeOutAndStop() meanwhile.
     private func deliver(ifCurrent runGeneration: Int, _ action: @escaping @MainActor () -> Void) {
         Task { @MainActor in
             guard self.isCurrent(runGeneration) else { return }
@@ -1103,11 +1278,67 @@ final class AdalightController {
         var gradientOffset = 0.0
 
         while isCurrent(runGeneration) {
-            let config = currentConfig()
+            let snapshot = streamSnapshot()
+            var config = snapshot.config
+            var frame: [UInt8]
+
+            if let fadeOut = snapshot.fadeOut,
+               fadeOut.runGeneration == runGeneration {
+                let elapsed = DispatchTime.now().uptimeNanoseconds - fadeOut.startedAtNanoseconds
+                if elapsed >= fadeOut.durationNanoseconds {
+                    break
+                }
+
+                let progress = Double(elapsed) / Double(fadeOut.durationNanoseconds)
+                let smoothProgress = Self.smoothStep(progress)
+
+                if let initialFrame = fadeOut.initialFrame {
+                    let blankConfig = StreamConfig(
+                        brightness: 0,
+                        speed: 0,
+                        ledCount: fadeOut.initialConfig.ledCount
+                    )
+                    frame = blendFrames(
+                        from: initialFrame,
+                        to: makeFrame(config: blankConfig, gradientOffset: 0),
+                        progress: smoothProgress
+                    )
+                    config = fadeOut.initialConfig
+                } else {
+                    config = fadeOut.initialConfig
+                    config.brightness *= 1 - smoothProgress
+                    frame = makeFrame(config: config, gradientOffset: gradientOffset)
+                }
+            } else if let fadeIn = snapshot.fadeIn,
+                      fadeIn.runGeneration == runGeneration {
+                let elapsed = DispatchTime.now().uptimeNanoseconds - fadeIn.startedAtNanoseconds
+                if elapsed < fadeIn.durationNanoseconds {
+                    let progress = Double(elapsed) / Double(fadeIn.durationNanoseconds)
+                    config.brightness *= Self.smoothStep(progress)
+                }
+                frame = makeFrame(config: config, gradientOffset: gradientOffset)
+            } else {
+                frame = makeFrame(config: config, gradientOffset: gradientOffset)
+            }
+
+            if snapshot.fadeOut == nil,
+               let transition = snapshot.visualTransition,
+               transition.runGeneration == runGeneration {
+                let elapsed = DispatchTime.now().uptimeNanoseconds - transition.startedAtNanoseconds
+                if elapsed < transition.durationNanoseconds {
+                    let progress = Double(elapsed) / Double(transition.durationNanoseconds)
+                    frame = blendFrames(
+                        from: transition.fromFrame,
+                        to: frame,
+                        progress: Self.smoothStep(progress)
+                    )
+                }
+            }
+
             lastLEDCount = max(1, min(300, config.ledCount))
 
-            let frame = makeFrame(config: config, gradientOffset: gradientOffset)
             writeAll(frame, to: fd)
+            recordLastFrame(frame, for: runGeneration)
 
             if !config.paused && config.effect == .rainbow {
                 gradientOffset = positiveModulo(
@@ -1165,6 +1396,21 @@ final class AdalightController {
         }
 
         return frame
+    }
+
+    private func blendFrames(from: [UInt8], to: [UInt8], progress: Double) -> [UInt8] {
+        guard from.count == to.count, to.count > 6 else { return to }
+
+        let clampedProgress = min(1, max(0, progress))
+        let inverseProgress = 1 - clampedProgress
+        var blended = to
+
+        for index in 6 ..< to.count {
+            let value = Double(from[index]) * inverseProgress + Double(to[index]) * clampedProgress
+            blended[index] = UInt8(max(0, min(255, Int(value.rounded()))))
+        }
+
+        return blended
     }
 
     private func colorForPixel(index: Int, physicalLEDCount: Int, config: StreamConfig, gradientOffset: Double) -> LEDColor {
