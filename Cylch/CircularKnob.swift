@@ -93,30 +93,47 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset)
 
-                // Broad 90-degree light gives the metal face a shallow dome:
+                // Broad 90-degree light gives the metal face a clear dome:
                 // the highlight begins directly above and rolls into a soft
-                // shade below. The low contrast
-                // keeps the existing spun-metal sweep visible underneath.
+                // shade below while keeping the spun-metal sweep visible.
                 Circle()
                     .fill(
                         LinearGradient(
                             stops: [
                                 .init(
-                                    color: Color.white.opacity(isDark ? 0.09 : 0.5),
+                                    color: Color.white.opacity(isDark ? 0.16 : 0.62),
                                     location: 0
                                 ),
                                 .init(color: Color.clear, location: 0.46),
                                 .init(
-                                    color: Color.black.opacity(isDark ? 0.18 : 0.09),
-                                    location: 0.84
+                                    color: Color.black.opacity(isDark ? 0.3 : 0.13),
+                                    location: 0.82
                                 ),
                                 .init(
-                                    color: Color.white.opacity(isDark ? 0.025 : 0.12),
+                                    color: Color.white.opacity(isDark ? 0.035 : 0.16),
                                     location: 1
                                 )
                             ],
                             startPoint: .top,
                             endPoint: .bottom
+                        )
+                    )
+                    .padding(knobInset + 1)
+
+                // A soft edge vignette bends the face away from the viewer
+                // on every side. Combined with the directional light above,
+                // it adds depth inside the knob instead of making it float.
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(isDark ? 0.06 : 0.14), location: 0),
+                                .init(color: Color.clear, location: 0.58),
+                                .init(color: Color.black.opacity(isDark ? 0.22 : 0.085), location: 1)
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: knobRadius
                         )
                     )
                     .padding(knobInset + 1)
@@ -127,10 +144,10 @@ struct CircularKnob: View {
                     .stroke(
                         LinearGradient(
                             stops: [
-                                .init(color: Color.white.opacity(isDark ? 0.1 : 0.62), location: 0),
+                                .init(color: Color.white.opacity(isDark ? 0.14 : 0.75), location: 0),
                                 .init(color: Color.clear, location: 0.46),
-                                .init(color: Color.black.opacity(isDark ? 0.18 : 0.08), location: 0.82),
-                                .init(color: Color.white.opacity(isDark ? 0.035 : 0.2), location: 1)
+                                .init(color: Color.black.opacity(isDark ? 0.24 : 0.12), location: 0.82),
+                                .init(color: Color.white.opacity(isDark ? 0.045 : 0.24), location: 1)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -146,10 +163,10 @@ struct CircularKnob: View {
                     .stroke(
                         LinearGradient(
                             stops: [
-                                .init(color: Color.white.opacity(isDark ? 0.06 : 0.55), location: 0),
+                                .init(color: Color.white.opacity(isDark ? 0.08 : 0.68), location: 0),
                                 .init(color: Color.clear, location: 0.45),
-                                .init(color: Color.black.opacity(isDark ? 0.22 : 0.07), location: 0.82),
-                                .init(color: Color.white.opacity(isDark ? 0.025 : 0.16), location: 1)
+                                .init(color: Color.black.opacity(isDark ? 0.3 : 0.11), location: 0.82),
+                                .init(color: Color.white.opacity(isDark ? 0.035 : 0.2), location: 1)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -332,16 +349,22 @@ struct CircularKnob: View {
                         .opacity(isEnabled ? 0.9 : 0.45)
                         .padding(knobInset)
                         .shadow(
-                            color: Color.black.opacity(isEnabled ? (isDark ? 0.24 : 0.11) : 0.08),
-                            radius: isEnabled ? 4 : 2,
+                            color: Color.black.opacity(isEnabled ? (isDark ? 0.38 : 0.2) : 0.08),
+                            radius: isEnabled ? 8 : 3,
                             x: 0,
-                            y: 2
+                            y: 5
                         )
                         .shadow(
-                            color: Color.white.opacity(isEnabled ? (isDark ? 0.06 : 0.42) : 0.03),
-                            radius: isEnabled ? 3 : 1.5,
+                            color: Color.black.opacity(isEnabled ? (isDark ? 0.3 : 0.14) : 0.06),
+                            radius: isEnabled ? 2 : 1,
                             x: 0,
-                            y: -2
+                            y: 1
+                        )
+                        .shadow(
+                            color: Color.white.opacity(isEnabled ? (isDark ? 0.12 : 0.75) : 0.03),
+                            radius: isEnabled ? 6 : 2,
+                            x: 0,
+                            y: -4
                         )
                 }
             }
