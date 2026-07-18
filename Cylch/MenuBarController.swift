@@ -5,6 +5,7 @@
 
 import AppKit
 import Combine
+import ServiceManagement
 import SwiftUI
 
 /// AppKit owns the status item so Settings can be presented by a real
@@ -81,6 +82,13 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         menu.removeAllItems()
         menu.autoenablesItems = false
 
+        let aboutItem = actionItem(
+            "About Cylch",
+            image: assetImage("info"),
+            action: #selector(showAbout)
+        )
+        menu.addItem(aboutItem)
+
         let settingsItem = actionItem(
             "Settings…",
             image: assetImage("settings"),
@@ -109,6 +117,28 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             action: #selector(setSpeed)
         ))
         menu.addItem(.separator())
+
+        let launchAtLoginStatus = SMAppService.mainApp.status
+        let launchAtLoginImageName: String
+
+        switch launchAtLoginStatus {
+        case .enabled:
+            launchAtLoginImageName = "laptop_check"
+        case .requiresApproval, .notRegistered, .notFound:
+            launchAtLoginImageName = "laptop_x"
+        @unknown default:
+            launchAtLoginImageName = "laptop_x"
+        }
+
+        let launchAtLoginItem = actionItem(
+            "Launch at Login",
+            image: assetImage(launchAtLoginImageName),
+            action: #selector(toggleLaunchAtLogin)
+        )
+        if launchAtLoginStatus == .requiresApproval {
+            launchAtLoginItem.toolTip = "Approval required in System Settings"
+        }
+        menu.addItem(launchAtLoginItem)
 
         let quitItem = actionItem(
             "Quit",
@@ -483,6 +513,54 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     @objc private func setSpeed(_ sender: NSMenuItem) {
         guard let level = sender.representedObject as? Int else { return }
         viewModel.speed = Double(level)
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        let service = SMAppService.mainApp
+
+        do {
+            switch service.status {
+            case .enabled:
+                try service.unregister()
+            case .requiresApproval:
+                SMAppService.openSystemSettingsLoginItems()
+            case .notRegistered, .notFound:
+                try service.register()
+            @unknown default:
+                try service.register()
+            }
+        } catch {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Couldn’t Update Launch at Login"
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    @objc private func showAbout() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+
+        let credits = NSAttributedString(
+            string: "A lightweight menu bar app for controlling addressable LED lighting.",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Cylch",
+            .applicationIcon: NSApplication.shared.applicationIconImage as Any,
+            .credits: credits
+        ])
     }
 
     @objc private func quit() {
