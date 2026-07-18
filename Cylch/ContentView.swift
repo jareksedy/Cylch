@@ -370,6 +370,11 @@ private extension View {
     func controlCapsule() -> some View {
         background(Capsule().fill(Color.primary.opacity(0.04)))
     }
+
+    func popoverNumericStyle(size: CGFloat) -> some View {
+        font(.system(size: size, weight: .semibold).width(.expanded))
+            .monospacedDigit()
+    }
 }
 
 /// Small round icon button used inside capsule controls (refresh, ±),
@@ -410,8 +415,7 @@ private struct CapsuleStepper: View {
             }
 
             Text("\(value)")
-                .font(.system(size: 13, weight: .medium))
-                .monospacedDigit()
+                .popoverNumericStyle(size: 11)
                 .contentTransition(.numericText(value: Double(value)))
                 .frame(minWidth: 52)
 
@@ -432,8 +436,7 @@ private struct TimeStepper: View {
     var body: some View {
         ZStack {
             Text(timeString)
-                .font(.system(size: 14, weight: .medium))
-                .monospacedDigit()
+                .popoverNumericStyle(size: 11)
                 .frame(minWidth: 60)
 
             HStack(spacing: 0) {
