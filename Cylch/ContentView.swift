@@ -363,7 +363,7 @@ private extension View {
 }
 
 /// Small round icon button used inside capsule controls (refresh, ±),
-/// backed by template icons from the asset catalog.
+/// backed by system SF Symbols and the app accent color.
 private struct GlyphButton: View {
     let systemName: String
     var symbolSize: CGFloat = 24
@@ -376,7 +376,7 @@ private struct GlyphButton: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: symbolSize, height: symbolSize)
                 .frame(width: 36, height: 36)
                 .contentShape(Circle())

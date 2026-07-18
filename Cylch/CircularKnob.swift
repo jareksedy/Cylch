@@ -179,9 +179,9 @@ struct CircularKnob: View {
 
                 // Fine analog-dial markers form a separate ring just inside
                 // the gauge, with their outer tips aligned to one radius.
-                // Sixteen divisions keep it calm; every fourth establishes rhythm.
-                ForEach(0 ..< 16, id: \.self) { index in
-                    let isMajorMarker = index.isMultiple(of: 4)
+                // Twenty divisions keep it calm; every fifth establishes rhythm.
+                ForEach(0 ..< 20, id: \.self) { index in
+                    let isMajorMarker = index.isMultiple(of: 5)
                     let markerHeight: CGFloat = isMajorMarker ? 5 : 3
 
                     Capsule()
@@ -201,7 +201,7 @@ struct CircularKnob: View {
                         .offset(
                             y: -(size / 2 - trackPadding - 4 - markerHeight / 2)
                         )
-                        .rotationEffect(.degrees(Double(index) * 22.5))
+                        .rotationEffect(.degrees(Double(index) * 18))
                 }
 
                 // Engraved groove: a light edge peeking out just below the
@@ -230,8 +230,6 @@ struct CircularKnob: View {
                     .padding(trackPadding)
 
 
-                // The arc is drawn only while enabled; a disabled knob shows
-                // just the empty groove.
                 if isEnabled {
                     // A separate blurred copy preserves the gradient's own
                     // colors in the glow instead of tinting the entire arc
@@ -263,6 +261,18 @@ struct CircularKnob: View {
                         // Muted in the dark theme so the arc doesn't
                         // overpower the UI, fully opaque in the light one.
                         .opacity(isDark ? 0.5 : 1)
+                } else {
+                    // Preserve the stored value while disabled, using the
+                    // same muted treatment as the readout, icon and markers.
+                    Circle()
+                        .trim(from: 0, to: gaugeProgress)
+                        .stroke(
+                            inactiveElementColor,
+                            style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round)
+                        )
+                        .padding(trackPadding)
+                        .rotationEffect(.degrees(-90))
+                        .opacity(0.5)
                 }
 
                 Circle()
@@ -339,30 +349,30 @@ struct CircularKnob: View {
             .saturation(isEnabled ? 1 : 0)
             .contentShape(Circle())
             // A nested, dense system material calms the desktop show-through
-            // without turning the knobs into two fixed dark discs. It picks
-            // up the popover's tone; when disabled, the surface itself also
-            // recedes so the whole control participates in the muted state.
+            // without turning the knobs into two fixed dark discs. The shell
+            // and its external light/shade stay equally raised while disabled;
+            // only the interactive content above recedes.
             .background {
                 if usesPopoverSurface {
                     Circle()
                         .fill(.ultraThickMaterial)
-                        .opacity(isEnabled ? 0.9 : 0.45)
+                        .opacity(0.9)
                         .padding(knobInset)
                         .shadow(
-                            color: Color.black.opacity(isEnabled ? (isDark ? 0.38 : 0.2) : 0.08),
-                            radius: isEnabled ? 8 : 3,
+                            color: Color.black.opacity(isDark ? 0.38 : 0.2),
+                            radius: 8,
                             x: 0,
                             y: 5
                         )
                         .shadow(
-                            color: Color.black.opacity(isEnabled ? (isDark ? 0.3 : 0.14) : 0.06),
-                            radius: isEnabled ? 2 : 1,
+                            color: Color.black.opacity(isDark ? 0.3 : 0.14),
+                            radius: 2,
                             x: 0,
                             y: 1
                         )
                         .shadow(
-                            color: Color.white.opacity(isEnabled ? (isDark ? 0.12 : 0.75) : 0.03),
-                            radius: isEnabled ? 6 : 2,
+                            color: Color.white.opacity(isDark ? 0.12 : 0.75),
+                            radius: 6,
                             x: 0,
                             y: -4
                         )
