@@ -1108,8 +1108,9 @@ final class AdalightController {
             let effectChanged = state.config.effect != config.effect
             let staticColorChanged = state.config.staticColor.name != config.staticColor.name
                 && (state.config.effect == .static || config.effect == .static)
+            let lightsOffChanged = state.config.lightsOff != config.lightsOff
 
-            if effectChanged || staticColorChanged {
+            if effectChanged || staticColorChanged || lightsOffChanged {
                 if durationNanoseconds > 0,
                    state.fadeOut == nil,
                    let lastFrame = state.lastFrame {
@@ -1446,26 +1447,20 @@ final class AdalightController {
     private func rgbCircleGradientColor(physicalIndex: Int, physicalLEDCount: Int, offset: Double) -> (UInt8, UInt8, UInt8) {
         let shiftedPosition = positiveModulo(Double(physicalIndex) - offset, Double(physicalLEDCount))
         let position = shiftedPosition / Double(physicalLEDCount)
-        let segment = position * 3.0
-        let red: Double
-        let green: Double
-        let blue: Double
 
-        if segment < 1.0 {
-            red = (1.0 - segment) * 255.0
-            green = segment * 255.0
-            blue = 0.0
-        } else if segment < 2.0 {
-            let t = segment - 1.0
-            red = 0.0
-            green = (1.0 - t) * 255.0
-            blue = t * 255.0
-        } else {
-            let t = segment - 2.0
-            red = t * 255.0
-            green = 0.0
-            blue = (1.0 - t) * 255.0
+        // Three phase-shifted cosine waves form a seamless color wheel. The
+        // gentle shaping keeps the colors rich without the hard derivatives
+        // and brightness dips of direct red -> green -> blue interpolation.
+        let fullTurn = 2 * Double.pi
+        let shapingExponent = 1.35
+        let channel: (Double) -> Double = { phase in
+            let wave = 0.5 + 0.5 * cos(fullTurn * (position - phase))
+            return pow(max(0, wave), shapingExponent) * 255
         }
+
+        let red = channel(0)
+        let green = channel(1.0 / 3.0)
+        let blue = channel(2.0 / 3.0)
 
         return (clampByte(red), clampByte(green), clampByte(blue))
     }

@@ -91,26 +91,11 @@ struct CircularKnob: View {
                             angle: .degrees(-90)
                         )
                     )
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    stops: [
-                                        .init(color: Color.primary.opacity(isDark ? 0.12 : 0.1), location: 0),
-                                        .init(color: Color.primary.opacity(isDark ? 0.04 : 0.035), location: 0.45),
-                                        .init(color: Color.white.opacity(isDark ? 0.05 : 0.45), location: 1)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 1
-                            )
-                    )
                     .padding(knobInset)
 
-                // Broad directional light gives the metal face a shallow
-                // dome: the highlight begins at the upper-left and rolls
-                // into a soft shade at the lower-right. The low contrast
+                // Broad 90-degree light gives the metal face a shallow dome:
+                // the highlight begins directly above and rolls into a soft
+                // shade below. The low contrast
                 // keeps the existing spun-metal sweep visible underneath.
                 Circle()
                     .fill(
@@ -123,11 +108,15 @@ struct CircularKnob: View {
                                 .init(color: Color.clear, location: 0.46),
                                 .init(
                                     color: Color.black.opacity(isDark ? 0.18 : 0.09),
+                                    location: 0.84
+                                ),
+                                .init(
+                                    color: Color.white.opacity(isDark ? 0.025 : 0.12),
                                     location: 1
                                 )
                             ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
                     )
                     .padding(knobInset + 1)
@@ -137,13 +126,14 @@ struct CircularKnob: View {
                 Circle()
                     .stroke(
                         LinearGradient(
-                            colors: [
-                                Color.white.opacity(isDark ? 0.1 : 0.62),
-                                Color.clear,
-                                Color.black.opacity(isDark ? 0.18 : 0.08)
+                            stops: [
+                                .init(color: Color.white.opacity(isDark ? 0.1 : 0.62), location: 0),
+                                .init(color: Color.clear, location: 0.46),
+                                .init(color: Color.black.opacity(isDark ? 0.18 : 0.08), location: 0.82),
+                                .init(color: Color.white.opacity(isDark ? 0.035 : 0.2), location: 1)
                             ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            startPoint: .top,
+                            endPoint: .bottom
                         ),
                         lineWidth: 1
                     )
@@ -155,9 +145,11 @@ struct CircularKnob: View {
                 Circle()
                     .stroke(
                         LinearGradient(
-                            colors: [
-                                Color.white.opacity(isDark ? 0.06 : 0.55),
-                                Color.black.opacity(isDark ? 0.22 : 0.07)
+                            stops: [
+                                .init(color: Color.white.opacity(isDark ? 0.06 : 0.55), location: 0),
+                                .init(color: Color.clear, location: 0.45),
+                                .init(color: Color.black.opacity(isDark ? 0.22 : 0.07), location: 0.82),
+                                .init(color: Color.white.opacity(isDark ? 0.025 : 0.16), location: 1)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -195,6 +187,24 @@ struct CircularKnob: View {
                 // The arc is drawn only while enabled; a disabled knob shows
                 // just the empty groove.
                 if isEnabled {
+                    // A separate blurred copy preserves the gradient's own
+                    // colors in the glow instead of tinting the entire arc
+                    // with one generic shadow color.
+                    Circle()
+                        .trim(from: 0, to: gaugeProgress)
+                        .stroke(
+                            gaugeGradient,
+                            style: StrokeStyle(lineWidth: gaugeWidth + 1, lineCap: .round)
+                        )
+                        .padding(trackPadding)
+                        .rotationEffect(.degrees(-90))
+                        .blur(radius: isDark ? 4 : 3)
+                        .opacity(isDark ? 0.42 : 0.24)
+                        .animation(
+                            dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05),
+                            value: gaugeProgress
+                        )
+
                     Circle()
                         .trim(from: 0, to: gaugeProgress)
                         .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
@@ -212,6 +222,12 @@ struct CircularKnob: View {
                 Circle()
                     .fill(isEnabled ? pointerColor : trackColor)
                     .frame(width: 5, height: 5)
+                    .shadow(
+                        color: isEnabled
+                            ? pointerColor.opacity(isDark ? 0.8 : 0.45)
+                            : .clear,
+                        radius: isDark ? 4 : 2.5
+                    )
                     .offset(y: -knobRadius * 0.65)
                     .rotationEffect(.degrees(pointerAngle))
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
@@ -245,25 +261,16 @@ struct CircularKnob: View {
                     // Optical centering: nudge the digits a hair left so the
                     // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
-                    // Keep the light-theme percentage deliberately plain:
-                    // one opaque gray source color, no blend mode and no
-                    // relief shadows. Numeric transition layers therefore
-                    // cannot change its perceived density while overlapping.
-                    .foregroundStyle(isDark ? Color.secondary : Color.gray)
+                    // Flatten the rolling digits before applying one accent
+                    // glow, so overlapping transition snapshots do not each
+                    // receive their own shadow in the light theme.
+                    .foregroundStyle(Color.accentColor)
                     .compositingGroup()
-                    .blendMode(isDark ? .screen : .normal)
-                    .opacity(isDark ? 0.75 : 1)
+                    .blendMode(.normal)
+                    .opacity(isDark ? 0.9 : 1)
                     .shadow(
-                        color: isDark ? .black.opacity(0.5) : .clear,
-                        radius: 0.5,
-                        x: 0,
-                        y: -0.75
-                    )
-                    .shadow(
-                        color: isDark ? .white.opacity(0.15) : .clear,
-                        radius: 0.5,
-                        x: 0,
-                        y: 0.75
+                        color: Color.accentColor.opacity(isDark ? 0.65 : 0.32),
+                        radius: isDark ? 4 : 2.5
                     )
 
                     if let icon {
@@ -273,6 +280,10 @@ struct CircularKnob: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 13, height: 13)
                             .foregroundStyle(Color.accentColor)
+                            .shadow(
+                                color: Color.accentColor.opacity(isDark ? 0.72 : 0.36),
+                                radius: isDark ? 4 : 2.5
+                            )
                     }
                 }
             }
@@ -290,16 +301,16 @@ struct CircularKnob: View {
                         .opacity(isEnabled ? 0.9 : 0.45)
                         .padding(knobInset)
                         .shadow(
-                            color: Color.black.opacity(isEnabled ? (isDark ? 0.34 : 0.16) : 0.12),
-                            radius: isEnabled ? 6 : 3,
-                            x: 4,
-                            y: 5
+                            color: Color.black.opacity(isEnabled ? (isDark ? 0.24 : 0.11) : 0.08),
+                            radius: isEnabled ? 4 : 2,
+                            x: 0,
+                            y: 2
                         )
                         .shadow(
-                            color: Color.white.opacity(isEnabled ? (isDark ? 0.08 : 0.72) : 0.04),
-                            radius: isEnabled ? 5 : 2,
-                            x: -4,
-                            y: -4
+                            color: Color.white.opacity(isEnabled ? (isDark ? 0.06 : 0.42) : 0.03),
+                            radius: isEnabled ? 3 : 1.5,
+                            x: 0,
+                            y: -2
                         )
                 }
             }
