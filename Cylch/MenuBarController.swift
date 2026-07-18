@@ -34,10 +34,21 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         statusItem.menu = menu
         rebuildMenu()
         observeConnectionState()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidResignActive(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: NSApplication.shared
+        )
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         rebuildMenu()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        closeSettingsPopoverIfShown()
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -406,6 +417,15 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
         NSApplication.shared.activate(ignoringOtherApps: true)
         window.makeKey()
+    }
+
+    @objc private func applicationDidResignActive(_ notification: Notification) {
+        closeSettingsPopoverIfShown()
+    }
+
+    private func closeSettingsPopoverIfShown() {
+        guard settingsPopover.isShown else { return }
+        settingsPopover.performClose(nil)
     }
 
     @objc private func refreshPorts() {
