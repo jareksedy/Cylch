@@ -158,6 +158,33 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset + 1 + bezelWidth / 2)
 
+                // Fine analog-dial markers form a separate ring just inside
+                // the gauge, with their outer tips aligned to one radius.
+                // Twenty divisions keep it calm; every fifth establishes rhythm.
+                ForEach(0 ..< 20, id: \.self) { index in
+                    let isMajorMarker = index.isMultiple(of: 5)
+                    let markerHeight: CGFloat = isMajorMarker ? 5 : 3
+
+                    Capsule()
+                        .fill(
+                            isEnabled
+                                ? Color.primary.opacity(
+                                    isMajorMarker
+                                        ? (isDark ? 0.3 : 0.35)
+                                        : (isDark ? 0.22 : 0.25)
+                                )
+                                : trackColor
+                        )
+                        .frame(
+                            width: 1,
+                            height: markerHeight
+                        )
+                        .offset(
+                            y: -(size / 2 - trackPadding - 4 - markerHeight / 2)
+                        )
+                        .rotationEffect(.degrees(Double(index) * 18))
+                }
+
                 // Engraved groove: a light edge peeking out just below the
                 // dark track line makes it read as carved into the surface.
                 // The edge fades out towards the bottom, where it would
