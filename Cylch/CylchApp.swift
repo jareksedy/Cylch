@@ -8,29 +8,37 @@
 import SwiftUI
 import AppKit
 
+@main
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Runs for the real app and for Xcode preview agents alike (previews
-        // launch this binary), so everything reachable from here must avoid
-        // Obj-C message sends — the previews JIT crashes on them.
-        MainActor.assumeIsolated {
-            SettingsViewModel.shared.autoConnectOnLaunch()
+    private var menuBarController: MenuBarController?
+
+    static func main() {
+        if getenv("XCODE_RUNNING_FOR_PREVIEWS") != nil {
+            CylchPreviewLifecycle.main()
+            return
         }
+
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        application.setActivationPolicy(.accessory)
+        application.run()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let viewModel = SettingsViewModel.shared
+        viewModel.autoConnectOnLaunch()
+        menuBarController = MenuBarController(viewModel: viewModel)
     }
 }
 
-@main
-struct CylchApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
+/// Xcode Preview needs SwiftUI's scene lifecycle, while the shipped app uses
+/// AppKit so it can own and anchor its status-item popover.
+private struct CylchPreviewLifecycle: App {
     var body: some Scene {
-        MenuBarExtra("Cylch", image: "cylch-16x16") {
-            MenuBarView()
+        WindowGroup {
+            Color.clear
         }
-
-        Window("Settings", id: "settings") {
-            SettingsView()
-        }
-        .defaultSize(width: 420, height: 330)
     }
 }

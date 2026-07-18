@@ -8,6 +8,7 @@ struct CircularKnob: View {
     var pointerColor: Color = .accentColor
     var scrollSensitivity: Double = 0.05
     var icon: Image?
+    var usesPopoverSurface = false
 
     enum GaugeStyle {
         case rainbow
@@ -107,6 +108,47 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset)
 
+                // Broad directional light gives the metal face a shallow
+                // dome: the highlight begins at the upper-left and rolls
+                // into a soft shade at the lower-right. The low contrast
+                // keeps the existing spun-metal sweep visible underneath.
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(
+                                    color: Color.white.opacity(isDark ? 0.09 : 0.5),
+                                    location: 0
+                                ),
+                                .init(color: Color.clear, location: 0.46),
+                                .init(
+                                    color: Color.black.opacity(isDark ? 0.18 : 0.09),
+                                    location: 1
+                                )
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .padding(knobInset + 1)
+
+                // A restrained inner rim catches the same directional light
+                // and separates the convex face from the outer bezel.
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isDark ? 0.1 : 0.62),
+                                Color.clear,
+                                Color.black.opacity(isDark ? 0.18 : 0.08)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                    .padding(knobInset + 2)
+
                 // Convex bezel: the rim between the outer stroke and the
                 // groove is lit from above so it reads as a raised ring.
                 // Inset by an extra point so it doesn't wash out the stroke.
@@ -193,12 +235,9 @@ struct CircularKnob: View {
                             .hidden()
 
                         Text("\(Int(normalizedValue * 100))%")
-                            // Odometer-style rolling digits: they spin up as
-                            // the value grows and down as it shrinks. The
-                            // explicit transaction replaces whatever
-                            // animation the caller used, so the roll speed
-                            // is consistent everywhere and layout never
-                            // inherits the scroll handler's animation.
+                            // Odometer-style rolling digits. The group below
+                            // is flattened before compositing so transition
+                            // snapshots cannot darken the label separately.
                             .contentTransition(.numericText(value: normalizedValue))
                             .transaction { $0.animation = .snappy(duration: 0.05) }
                     }
@@ -206,6 +245,26 @@ struct CircularKnob: View {
                     // Optical centering: nudge the digits a hair left so the
                     // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
+                    // Keep the light-theme percentage deliberately plain:
+                    // one opaque gray source color, no blend mode and no
+                    // relief shadows. Numeric transition layers therefore
+                    // cannot change its perceived density while overlapping.
+                    .foregroundStyle(isDark ? Color.secondary : Color.gray)
+                    .compositingGroup()
+                    .blendMode(isDark ? .screen : .normal)
+                    .opacity(isDark ? 0.75 : 1)
+                    .shadow(
+                        color: isDark ? .black.opacity(0.5) : .clear,
+                        radius: 0.5,
+                        x: 0,
+                        y: -0.75
+                    )
+                    .shadow(
+                        color: isDark ? .white.opacity(0.15) : .clear,
+                        radius: 0.5,
+                        x: 0,
+                        y: 0.75
+                    )
 
                     if let icon {
                         icon
@@ -216,23 +275,34 @@ struct CircularKnob: View {
                             .foregroundStyle(Color.accentColor)
                     }
                 }
-                .foregroundStyle(.secondary)
-                // Blends the label into the metal surface instead of
-                // floating above it: multiply "prints" the dark text into
-                // the light theme, screen lets the dark theme's sheen show
-                // through the light glyphs.
-                .blendMode(isDark ? .screen : .multiply)
-                .opacity(0.75)
-                // Letterpress relief on top of the blend: a hair of shadow
-                // above and light below each glyph. Applied after the blend
-                // mode so the shadows composite normally and survive
-                // multiply/screen.
-                .shadow(color: .black.opacity(isDark ? 0.5 : 0.25), radius: 0.5, x: 0, y: -0.75)
-                .shadow(color: .white.opacity(isDark ? 0.15 : 0.9), radius: 0.5, x: 0, y: 0.75)
             }
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
             .contentShape(Circle())
+            // A nested, dense system material calms the desktop show-through
+            // without turning the knobs into two fixed dark discs. It picks
+            // up the popover's tone; when disabled, the surface itself also
+            // recedes so the whole control participates in the muted state.
+            .background {
+                if usesPopoverSurface {
+                    Circle()
+                        .fill(.ultraThickMaterial)
+                        .opacity(isEnabled ? 0.9 : 0.45)
+                        .padding(knobInset)
+                        .shadow(
+                            color: Color.black.opacity(isEnabled ? (isDark ? 0.34 : 0.16) : 0.12),
+                            radius: isEnabled ? 6 : 3,
+                            x: 4,
+                            y: 5
+                        )
+                        .shadow(
+                            color: Color.white.opacity(isEnabled ? (isDark ? 0.08 : 0.72) : 0.04),
+                            radius: isEnabled ? 5 : 2,
+                            x: -4,
+                            y: -4
+                        )
+                }
+            }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { drag in

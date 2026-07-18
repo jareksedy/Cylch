@@ -65,255 +65,42 @@ struct LEDColor: Identifiable, Equatable, Sendable {
     ]
 }
 
-struct MenuBarView: View {
-    @Environment(\.openWindow) private var openWindow
-    @StateObject private var viewModel = SettingsViewModel.shared
-
-    var body: some View {
-        Button {
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            openWindow(id: "settings")
-        } label: {
-            Label("Settings...", image: "settings")
-        }
-        .keyboardShortcut(",", modifiers: .command)
-        .labelStyle(.titleAndIcon)
-
-        Divider()
-
-        connectionSettingsMenu
-
-        Menu {
-            Toggle("Enabled", isOn: $viewModel.scheduleEnabled)
-
-            Divider()
-
-            scheduleTimeMenu(
-                "From: \(timeString(viewModel.scheduleStartTime))",
-                time: $viewModel.scheduleStartTime
-            )
-
-            scheduleTimeMenu(
-                "Until: \(timeString(viewModel.scheduleEndTime))",
-                time: $viewModel.scheduleEndTime
-            )
-        } label: {
-            Label("Night Schedule", image: "moon_small")
-        }
-        .labelStyle(.titleAndIcon)
-
-        Divider()
-
-        levelMenu(
-            "Brightness: \(Int(viewModel.brightness))%",
-            image: "brightness",
-            value: $viewModel.brightness,
-            isEnabled: viewModel.connected
-        )
-
-        levelMenu(
-            "Speed: \(Int(viewModel.speed))%",
-            image: "speed",
-            value: $viewModel.speed,
-            isEnabled: viewModel.connected && viewModel.selectedEffect != .static
-        )
-
-        Divider()
-
-        Button {
-            NSApplication.shared.terminate(nil)
-        } label: {
-            Label("Quit", image: "exit")
-        }
-        .keyboardShortcut("q", modifiers: .command)
-        .onAppear {
-            viewModel.onAppear()
-        }
-        .labelStyle(.titleAndIcon)
-    }
-
-    private var connectionSettingsMenu: some View {
-        Menu {
-            portMenu
-
-            Button {
-                viewModel.refreshPorts()
-            } label: {
-                Text("Refresh Ports")
-            }
-            .disabled(viewModel.connected)
-
-            Divider()
-
-            ledCountMenu
-
-            Divider()
-
-            Button {
-                if viewModel.connected {
-                    viewModel.stopStreaming()
-                } else {
-                    viewModel.connect()
-                }
-            } label: {
-                Label(
-                    viewModel.connected ? "Disconnect" : "Connect",
-                    image: viewModel.connected ? "link_horizontal_off" : "link_horizontal"
-                )
-            }
-            .disabled(!viewModel.connected && viewModel.selectedPort.isEmpty)
-        } label: {
-            Label(
-                "Connection",
-                image: viewModel.connected ? "link_horizontal" : "link_horizontal_off"
-            )
-        }
-        .labelStyle(.titleAndIcon)
-    }
-
-    @ViewBuilder
-    private var portMenu: some View {
-        if viewModel.connected {
-            Button {} label: {
-                Text("Port: \(shortPortName(viewModel.selectedPort))")
-            }
-            .disabled(true)
-        } else if viewModel.availablePorts.isEmpty {
-            Button {} label: {
-                Text("No USB Serial Ports")
-            }
-            .disabled(true)
-        } else {
-            Menu {
-                ForEach(viewModel.availablePorts, id: \.self) { port in
-                    Toggle(shortPortName(port), isOn: Binding(
-                        get: { viewModel.selectedPort == port },
-                        set: { isSelected in
-                            if isSelected {
-                                viewModel.selectedPort = port
-                            }
-                        }
-                    ))
-                }
-            } label: {
-                Text("Port: \(shortPortName(viewModel.selectedPort))")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var ledCountMenu: some View {
-        if viewModel.connected {
-            Button {} label: {
-                Text("LED count: \(viewModel.ledCount)")
-            }
-            .disabled(true)
-        } else {
-            Menu {
-                Button {
-                    viewModel.ledCount -= 1
-                } label: {
-                    Label("Decrease", systemImage: "minus.circle.fill")
-                }
-                .disabled(viewModel.ledCount <= 1)
-
-                Button {
-                    viewModel.ledCount += 1
-                } label: {
-                    Label("Increase", systemImage: "plus.circle.fill")
-                }
-                .disabled(viewModel.ledCount >= 300)
-            } label: {
-                Text("LED count: \(viewModel.ledCount)")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func scheduleTimeMenu(_ title: String, time: Binding<Date>) -> some View {
-        if viewModel.scheduleEnabled {
-            Menu {
-                Button {
-                    adjust(time, byMinutes: -30)
-                } label: {
-                    Label("30 Minutes Earlier", systemImage: "minus.circle.fill")
-                }
-
-                Button {
-                    adjust(time, byMinutes: 30)
-                } label: {
-                    Label("30 Minutes Later", systemImage: "plus.circle.fill")
-                }
-            } label: {
-                Text(title)
-            }
-        } else {
-            Button {} label: {
-                Text(title)
-            }
-            .disabled(true)
-        }
-    }
-
-    private func adjust(_ time: Binding<Date>, byMinutes minutes: Int) {
-        time.wrappedValue = Calendar.current.date(
-            byAdding: .minute,
-            value: minutes,
-            to: time.wrappedValue
-        ) ?? time.wrappedValue
-    }
-
-    private func timeString(_ time: Date) -> String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    private func shortPortName(_ port: String) -> String {
-        port.split(separator: "/").last.map(String.init) ?? port
-    }
-
-    /// A submenu with the 0–100% levels while enabled. NSMenu ignores
-    /// .disabled on items with submenus, so when unavailable the control
-    /// renders as a plain disabled item instead.
-    @ViewBuilder
-    private func levelMenu(_ title: String, image: String, value: Binding<Double>, isEnabled: Bool) -> some View {
-        if isEnabled {
-            Menu {
-                levelPicker(for: value)
-            } label: {
-                Label(title, image: image)
-            }
-            .labelStyle(.titleAndIcon)
-        } else {
-            Button {
-            } label: {
-                Label(title, image: image)
-            }
-            .disabled(true)
-            .labelStyle(.titleAndIcon)
-        }
-    }
-
-    /// Menu items for the 0–100% levels in 25% steps; the current level
-    /// (exact match only) gets a checkmark.
-    @ViewBuilder
-    private func levelPicker(for value: Binding<Double>) -> some View {
-        ForEach([0.0, 25, 50, 75, 100], id: \.self) { level in
-            Toggle("\(Int(level))%", isOn: Binding(
-                get: { value.wrappedValue == level },
-                set: { _ in value.wrappedValue = level }
-            ))
-        }
-    }
-}
-
 struct SettingsView: View {
+    var showsInlineHeader = false
+
     @StateObject private var viewModel = SettingsViewModel.shared
     @Namespace private var pickerNamespace
     @State private var showConnectionPopover = false
     @State private var showSchedulePopover = false
 
+    @ViewBuilder
     var body: some View {
+        if showsInlineHeader {
+            VStack(spacing: 0) {
+                inlineHeader
+                settingsContent
+            }
+            .onAppear {
+                viewModel.onAppear()
+            }
+        } else {
+            settingsContent
+                .onAppear {
+                    viewModel.onAppear()
+                }
+                .toolbar {
+                    ToolbarItem {
+                        scheduleToolbarButton
+                    }
+
+                    ToolbarItem {
+                        connectionToolbarButton
+                    }
+                }
+        }
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 28) {
             effectPicker
                 .frame(width: 320, height: 36)
@@ -324,41 +111,70 @@ struct SettingsView: View {
                 .frame(width: 320, height: 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 32)
+        .padding(.horizontal, showsInlineHeader ? 36 : 32)
         .font(.system(size: 13, design: .monospaced))
-        .onAppear {
-            viewModel.onAppear()
-        }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    showSchedulePopover.toggle()
-                } label: {
-                    Image("moon")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                }
-                .help("Night Schedule")
-                .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
-                    SchedulePopoverView()
-                }
-            }
+    }
 
-            ToolbarItem {
-                Button {
-                    showConnectionPopover.toggle()
-                } label: {
-                    Image("link_horizontal")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                }
-                .help("Connection")
-                .popover(isPresented: $showConnectionPopover, arrowEdge: .bottom) {
-                    ConnectionPopoverView()
-                }
+    private var inlineHeader: some View {
+        HStack(spacing: 12) {
+            Text("Settings")
+                .font(.system(size: 15, weight: .semibold))
+
+            Spacer()
+
+            HStack(spacing: 0) {
+                scheduleToolbarButton
+                connectionToolbarButton
             }
+            .padding(4)
+            .background {
+                Capsule()
+                    .fill(Color.primary.opacity(0.04))
+                    .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    private var scheduleToolbarButton: some View {
+        Button {
+            showSchedulePopover.toggle()
+        } label: {
+            Image("moon")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Night Schedule")
+        .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
+            SchedulePopoverView()
+        }
+    }
+
+    private var connectionToolbarButton: some View {
+        Button {
+            showConnectionPopover.toggle()
+        } label: {
+            Image("link_horizontal")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Connection")
+        .popover(isPresented: $showConnectionPopover, arrowEdge: .bottom) {
+            ConnectionPopoverView()
         }
     }
 
@@ -409,7 +225,8 @@ struct SettingsView: View {
             CircularKnob(
                 value: $viewModel.brightness,
                 gaugeStyle: viewModel.selectedEffect == .static ? .solid(viewModel.staticColor.color) : .rainbow,
-                icon: Image("brightness")
+                icon: Image("brightness"),
+                usesPopoverSurface: showsInlineHeader
             )
                 .frame(width: 140, height: 140)
                 .help("Brightness")
@@ -421,7 +238,8 @@ struct SettingsView: View {
                     .init(color: Color.accentColor.mix(with: .white, by: 0.45), location: 0.5),
                     .init(color: .accentColor, location: 1)
                 ]),
-                icon: Image("speed")
+                icon: Image("speed"),
+                usesPopoverSurface: showsInlineHeader
             )
                 .frame(width: 140, height: 140)
                 .disabled(viewModel.selectedEffect == .static)
