@@ -674,10 +674,16 @@ final class SettingsViewModel: ObservableObject {
     static let shared = SettingsViewModel()
 
     @Published var brightness: Double = 75 {
-        didSet { pushConfig() }
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
     }
     @Published var speed: Double = 25 {
-        didSet { pushConfig() }
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
     }
     @Published var ledCount: Int = 65 {
         didSet {
@@ -686,30 +692,51 @@ final class SettingsViewModel: ObservableObject {
                 ledCount = clamped
                 return
             }
+            persistSettings()
             pushConfig()
         }
     }
     @Published var selectedEffect: LEDEffect = .rainbow {
-        didSet { pushConfig() }
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
     }
     @Published var staticColor: LEDColor = LEDColor.palette[0] {
-        didSet { pushConfig() }
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
     }
     @Published var paused: Bool = false {
-        didSet { pushConfig() }
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
     }
-    @Published var selectedPort: String = ""
+    @Published var selectedPort: String = "" {
+        didSet { persistSettings() }
+    }
     @Published var connected: Bool = false
     @Published var availablePorts: [String] = []
     @Published var errorMessage: String?
     @Published var scheduleEnabled: Bool = false {
-        didSet { updateScheduleState() }
+        didSet {
+            persistSettings()
+            updateScheduleState()
+        }
     }
     @Published var scheduleStartTime: Date = SettingsViewModel.timeToday(hour: 23, minute: 0) {
-        didSet { updateScheduleState() }
+        didSet {
+            persistSettings()
+            updateScheduleState()
+        }
     }
     @Published var scheduleEndTime: Date = SettingsViewModel.timeToday(hour: 7, minute: 0) {
-        didSet { updateScheduleState() }
+        didSet {
+            persistSettings()
+            updateScheduleState()
+        }
     }
     @Published private(set) var scheduleActive: Bool = false
 
@@ -718,13 +745,40 @@ final class SettingsViewModel: ObservableObject {
         return scheduleActive ? "LEDs are off until schedule ends" : "LEDs stay on until scheduled off time"
     }
 
+    private let settingsStore: UserDefaultsSettingsStore
+    private var connectionPreference: Bool
     private let controller = AdalightController()
     private var scheduleTask: Task<Void, Never>?
 
-    init() {
+    convenience init() {
+        self.init(settingsStore: .shared)
+    }
+
+    init(settingsStore: UserDefaultsSettingsStore) {
+        let persisted = settingsStore.load()
+        self.settingsStore = settingsStore
+        connectionPreference = persisted.shouldReconnect
+
+        brightness = min(100, max(0, persisted.brightness))
+        speed = min(100, max(0, persisted.speed))
+        ledCount = min(300, max(1, persisted.ledCount))
+        selectedEffect = LEDEffect(rawValue: persisted.selectedEffect) ?? .rainbow
+        staticColor = LEDColor.palette.first {
+            $0.name == persisted.staticColorName
+        } ?? LEDColor.palette[0]
+        paused = persisted.paused
+        selectedPort = persisted.selectedPort
+        scheduleEnabled = persisted.scheduleEnabled
+        scheduleStartTime = Self.timeToday(
+            minuteOfDay: min(1_439, max(0, persisted.scheduleStartMinute))
+        )
+        scheduleEndTime = Self.timeToday(
+            minuteOfDay: min(1_439, max(0, persisted.scheduleEndMinute))
+        )
+
         controller.onConnectedChanged = { [weak self] isConnected in
             Task { @MainActor in
-                self?.connected = isConnected
+                self?.connectionStateDidChange(isConnected)
             }
         }
 
@@ -733,6 +787,10 @@ final class SettingsViewModel: ObservableObject {
                 self?.errorMessage = message
             }
         }
+
+        // Writes defaults on first launch and normalizes any stale or invalid
+        // values from an older build immediately after loading them.
+        persistSettings()
     }
 
     func onAppear() {
@@ -750,18 +808,33 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
-    /// Called once at launch: discovers ports and, if a USB serial adapter is
-    /// present, selects it and starts streaming automatically.
+    /// Called once at launch. A first install keeps the app's historical
+    /// auto-connect behavior; after that, the last explicit connected or
+    /// disconnected state decides whether streaming should be restored.
     func autoConnectOnLaunch() {
+        let portToRestore = selectedPort
         refreshPorts()
+        startScheduleMonitor()
         pushConfig()
 
-        guard !connected,
-              let usbSerialPort = Self.preferredPort(in: availablePorts) else {
+        guard connectionPreference,
+              !connected else {
             return
         }
 
-        selectedPort = usbSerialPort
+        if !portToRestore.isEmpty {
+            guard availablePorts.contains(portToRestore) else {
+                // Never silently reconnect to a different adapter merely
+                // because the previously connected one is unavailable.
+                connectionPreference = false
+                persistSettings()
+                return
+            }
+            selectedPort = portToRestore
+        }
+
+        guard !selectedPort.isEmpty else { return }
+
         connect()
     }
 
@@ -781,13 +854,39 @@ final class SettingsViewModel: ObservableObject {
         }
 
         errorMessage = nil
-        paused = false
+        connectionPreference = true
+        persistSettings()
         controller.start(port: selectedPort, initialConfig: currentConfig)
     }
 
     func stopStreaming() {
+        connectionPreference = false
+        persistSettings()
         controller.stop()
         paused = false
+    }
+
+    private func connectionStateDidChange(_ isConnected: Bool) {
+        connected = isConnected
+        connectionPreference = isConnected
+        persistSettings()
+    }
+
+    private func persistSettings() {
+        let calendar = Calendar.current
+        settingsStore.save(PersistedSettings(
+            selectedPort: selectedPort,
+            ledCount: ledCount,
+            shouldReconnect: connectionPreference,
+            selectedEffect: selectedEffect.rawValue,
+            staticColorName: staticColor.name,
+            brightness: brightness,
+            speed: speed,
+            paused: paused,
+            scheduleEnabled: scheduleEnabled,
+            scheduleStartMinute: Self.minuteOfDay(from: scheduleStartTime, calendar: calendar),
+            scheduleEndMinute: Self.minuteOfDay(from: scheduleEndTime, calendar: calendar)
+        ))
     }
 
     private func pushConfig() {
@@ -838,6 +937,10 @@ final class SettingsViewModel: ObservableObject {
 
     private static func timeToday(hour: Int, minute: Int) -> Date {
         Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
+    }
+
+    private static func timeToday(minuteOfDay: Int) -> Date {
+        timeToday(hour: minuteOfDay / 60, minute: minuteOfDay % 60)
     }
 
     /// Prefers a USB serial adapter (e.g. `/dev/cu.usbserial-XXXX`) when present.
