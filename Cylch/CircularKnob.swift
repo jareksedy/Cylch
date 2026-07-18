@@ -289,30 +289,36 @@ struct CircularKnob: View {
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
                 HStack(spacing: 5) {
-                    // A hidden "100%" reserves the widest possible value; the
+                    // A hidden "100" reserves the widest possible number; the
                     // live value sits on its trailing edge at natural size,
                     // with layout animations suppressed — otherwise the
                     // withAnimation transaction from the scroll handler
                     // animates the text frame and the digits slide around
-                    // the % sign on width changes (9→10, 99→100).
-                    // Deliberately NOT monospacedDigit: tabular figures pad
-                    // narrow glyphs ("1") inside fixed cells, which makes the
-                    // optical gap to the % sign vary (51% vs 56%). Natural
-                    // kerning keeps the last digit snug against % instead.
+                    // on width changes (9→10, 99→100). The percent sign lives
+                    // outside the transition so its right edge never moves.
+                    // Tabular digits keep the readout visually anchored while
+                    // the value changes and the system odometer rolls.
                     // ZStack alignment rather than overlay+fixedSize: the
                     // latter mislaid the value on the first layout pass in
                     // previews until the first change re-laid it out.
-                    ZStack(alignment: .trailing) {
-                        Text("100%")
-                            .hidden()
+                    HStack(spacing: 0) {
+                        ZStack(alignment: .trailing) {
+                            Text("100")
+                                .hidden()
 
-                        Text("\(displayedPercentage)%")
-                            .contentTransition(.numericText(value: normalizedValue))
-                            .transaction { transaction in
-                                transaction.animation = .linear(duration: 0.01)
-                            }
+                            Text("\(displayedPercentage)")
+                                .contentTransition(.numericText(value: normalizedValue))
+                                // Keep the fast odometer scoped to number
+                                // changes. Appearance transitions such as
+                                // enabled/disabled must stay in the parent's
+                                // transaction so the digits and % recolor as one.
+                                .animation(.linear(duration: 0.01), value: displayedPercentage)
+                        }
+
+                        Text("%")
                     }
                     .font(.system(size: 12, weight: .semibold).width(.expanded))
+                    .monospacedDigit()
                     // Optical centering: nudge the digits a hair left so the
                     // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
