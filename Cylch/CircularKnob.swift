@@ -47,6 +47,7 @@ struct CircularKnob: View {
             let knobRadius = (size / 2) - knobInset
             let pointerAngle = dragAngle ?? (normalizedValue * 360)
             let gaugeProgress = pointerAngle / 360
+            let displayedPercentage = Int((normalizedValue * 100).rounded())
 
             let isDark = colorScheme == .dark
             // Translucent tints rather than opaque .windowBackgroundColor
@@ -63,6 +64,7 @@ struct CircularKnob: View {
                 ? Color.black.opacity(0.045)
                 : Color.black.opacity(0.09)
             let trackColor = Color.black.opacity(isDark ? 0.24 : 0.2)
+            let inactiveElementColor = Color.black.opacity(isDark ? 0.85 : 0.65)
             let trackWidth: CGFloat = 2
             let gaugeWidth: CGFloat = 2
             let trackPadding: CGFloat = 8
@@ -190,7 +192,7 @@ struct CircularKnob: View {
                                         ? (isDark ? 0.3 : 0.35)
                                         : (isDark ? 0.22 : 0.25)
                                 )
-                                : trackColor
+                                : inactiveElementColor
                         )
                         .frame(
                             width: 1,
@@ -264,7 +266,7 @@ struct CircularKnob: View {
                 }
 
                 Circle()
-                    .fill(isEnabled ? pointerColor : trackColor)
+                    .fill(isEnabled ? pointerColor : inactiveElementColor)
                     .frame(width: 5, height: 5)
                     .shadow(
                         color: isEnabled
@@ -294,21 +296,19 @@ struct CircularKnob: View {
                         Text("100%")
                             .hidden()
 
-                        Text("\(Int(normalizedValue * 100))%")
-                            // Odometer-style rolling digits. The group below
-                            // is flattened before compositing so transition
-                            // snapshots cannot darken the label separately.
+                        Text("\(displayedPercentage)%")
                             .contentTransition(.numericText(value: normalizedValue))
-                            .transaction { $0.animation = .snappy(duration: 0.05) }
+                            .transaction { transaction in
+                                transaction.animation = .linear(duration: 0.01)
+                            }
                     }
                     .font(.system(size: 12, weight: .semibold).width(.expanded))
                     // Optical centering: nudge the digits a hair left so the
                     // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
-                    // Flatten the rolling digits before applying one accent
-                    // glow, so overlapping transition snapshots do not each
-                    // receive their own shadow in the light theme.
-                    .foregroundStyle(isEnabled ? Color.accentColor : trackColor)
+                    // Flatten the fast system odometer before applying one
+                    // accent glow to the complete readout.
+                    .foregroundStyle(isEnabled ? Color.accentColor : inactiveElementColor)
                     .compositingGroup()
                     .blendMode(.normal)
                     .opacity(isDark ? 0.9 : 1)
@@ -325,7 +325,7 @@ struct CircularKnob: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 13, height: 13)
-                            .foregroundStyle(isEnabled ? Color.accentColor : trackColor)
+                            .foregroundStyle(isEnabled ? Color.accentColor : inactiveElementColor)
                             .shadow(
                                 color: isEnabled
                                     ? Color.accentColor.opacity(isDark ? 0.72 : 0.36)
