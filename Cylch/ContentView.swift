@@ -117,8 +117,17 @@ struct SettingsView: View {
 
     private var inlineHeader: some View {
         HStack(spacing: 12) {
-            Text("Settings")
-                .font(.system(size: 15, weight: .semibold))
+            HStack(spacing: 7) {
+                Image("settings")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 15, height: 15)
+                    .foregroundStyle(.secondary)
+
+                Text("Settings")
+                    .font(.system(size: 15, weight: .semibold))
+            }
 
             Spacer()
 
