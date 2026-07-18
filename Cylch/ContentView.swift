@@ -313,6 +313,7 @@ struct SettingsView: View {
 private struct SettingsPopoverPanel<Content: View>: View {
     let title: String
     let imageName: String
+    var headerOpticalOffset: CGFloat = 0
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -328,7 +329,7 @@ private struct SettingsPopoverPanel<Content: View>: View {
                 Text(title)
                     .font(.system(size: 14, weight: .medium))
             }
-            .padding(.leading, 2)
+            .padding(.leading, 2 + headerOpticalOffset)
 
             content()
         }
@@ -594,7 +595,11 @@ struct SchedulePopoverView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
 
     var body: some View {
-        SettingsPopoverPanel(title: "Night Schedule", imageName: "moon") {
+        SettingsPopoverPanel(
+            title: "Night Schedule",
+            imageName: "moon",
+            headerOpticalOffset: 3
+        ) {
             VStack(spacing: 16) {
                 HStack(spacing: 12) {
                     Text("Enabled")
@@ -651,6 +656,7 @@ struct SchedulePopoverView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
+            .padding(.leading, 3)
 
             TimeStepper(time: time, isEnabled: viewModel.scheduleEnabled)
         }
