@@ -32,7 +32,6 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         configureStatusItem()
         configurePopover()
         menu.delegate = self
-        statusItem.menu = menu
         rebuildMenu()
         observeConnectionState()
 
@@ -65,6 +64,9 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         button.image = assetImage("cylch-16x16", size: 16)
         button.image?.isTemplate = true
         button.toolTip = "Cylch"
+        button.target = self
+        button.action = #selector(statusItemClicked(_:))
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
     private func configurePopover() {
@@ -408,6 +410,23 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     private func adjust(_ time: Date, byMinutes minutes: Int) -> Date {
         Calendar.current.date(byAdding: .minute, value: minutes, to: time) ?? time
+    }
+
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApplication.shared.currentEvent
+        let opensMenu = event?.type == .rightMouseUp
+            || event?.modifierFlags.contains(.control) == true
+
+        if opensMenu {
+            // Temporarily assigning the native menu lets NSStatusItem retain
+            // its standard placement, tracking and highlight behavior. Once
+            // tracking ends, left clicks return to the direct popover action.
+            statusItem.menu = menu
+            sender.performClick(nil)
+            statusItem.menu = nil
+        } else {
+            showSettings()
+        }
     }
 
     @objc private func showSettings() {
