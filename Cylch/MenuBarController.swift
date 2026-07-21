@@ -18,6 +18,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private let menu = NSMenu()
     private let settingsPopover = NSPopover()
     private var connectionStateObservation: AnyCancellable?
+    private var brightnessObservation: AnyCancellable?
     private var liveConnectionItem: NSMenuItem?
     private var livePortItem: NSMenuItem?
     private var liveRefreshItem: NSMenuItem?
@@ -34,6 +35,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         menu.delegate = self
         rebuildMenu()
         observeConnectionState()
+        observeBrightness()
 
         NotificationCenter.default.addObserver(
             self,
@@ -61,8 +63,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = assetImage("cylch-16x16", size: 16)
-        button.image?.isTemplate = true
+        button.image = menuBarIcon(brightness: viewModel.brightness)
         button.toolTip = "Cylch"
         button.target = self
         button.action = #selector(statusItemClicked(_:))
@@ -202,6 +203,55 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
                 self?.refreshLiveConnectionItems()
             }
         }
+    }
+
+    private func observeBrightness() {
+        brightnessObservation = viewModel.$brightness
+            .removeDuplicates()
+            .sink { [weak self] brightness in
+                self?.statusItem.button?.image = self?.menuBarIcon(brightness: brightness)
+            }
+    }
+
+    /// A live version of the supplied PDF icon. Its proportions come directly
+    /// from the 24-point artwork: an 11-point disc, a 2-point cutout, and the
+    /// cutout center 5.66 points from the disc center. Zero brightness points
+    /// straight up, matching CircularKnob; values then advance clockwise.
+    private func menuBarIcon(brightness: Double) -> NSImage {
+        let imageSize = NSSize(width: 16, height: 16)
+        let image = NSImage(size: imageSize, flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+
+            let artworkScale = rect.width / 24
+            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let discRadius = 11 * artworkScale
+            let markerRadius = 2 * artworkScale
+            let markerOrbit = hypot(4, 4) * artworkScale
+            let normalizedBrightness = min(100, max(0, brightness)) / 100
+            let angle = normalizedBrightness * 2 * Double.pi
+            let markerCenter = CGPoint(
+                x: center.x + CGFloat(sin(angle)) * markerOrbit,
+                y: center.y + CGFloat(cos(angle)) * markerOrbit
+            )
+
+            context.addEllipse(in: CGRect(
+                x: center.x - discRadius,
+                y: center.y - discRadius,
+                width: discRadius * 2,
+                height: discRadius * 2
+            ))
+            context.addEllipse(in: CGRect(
+                x: markerCenter.x - markerRadius,
+                y: markerCenter.y - markerRadius,
+                width: markerRadius * 2,
+                height: markerRadius * 2
+            ))
+            context.setFillColor(NSColor.black.cgColor)
+            context.drawPath(using: .eoFill)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     private func refreshLiveConnectionItems() {
