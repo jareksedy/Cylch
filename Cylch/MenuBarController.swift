@@ -414,18 +414,18 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         let event = NSApplication.shared.currentEvent
-        let opensMenu = event?.type == .rightMouseUp
+        let opensSettings = event?.type == .rightMouseUp
             || event?.modifierFlags.contains(.control) == true
 
-        if opensMenu {
+        if opensSettings {
+            showSettings()
+        } else {
             // Temporarily assigning the native menu lets NSStatusItem retain
             // its standard placement, tracking and highlight behavior. Once
-            // tracking ends, left clicks return to the direct popover action.
+            // tracking ends, right clicks return to the direct popover action.
             statusItem.menu = menu
             sender.performClick(nil)
             statusItem.menu = nil
-        } else {
-            showSettings()
         }
     }
 
