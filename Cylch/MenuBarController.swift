@@ -63,7 +63,10 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
 
     private func configureStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = menuBarIcon(brightness: viewModel.brightness)
+        button.image = menuBarIcon(
+            brightness: viewModel.brightness,
+            isConnected: viewModel.connected && !viewModel.disconnecting
+        )
         button.toolTip = "Cylch"
         button.target = self
         button.action = #selector(statusItemClicked(_:))
@@ -209,15 +212,19 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         brightnessObservation = viewModel.$brightness
             .removeDuplicates()
             .sink { [weak self] brightness in
-                self?.statusItem.button?.image = self?.menuBarIcon(brightness: brightness)
+                guard let self else { return }
+                self.statusItem.button?.image = self.menuBarIcon(
+                    brightness: brightness,
+                    isConnected: self.viewModel.connected && !self.viewModel.disconnecting
+                )
             }
     }
 
     /// A live version of the supplied PDF icon. Its proportions come directly
-    /// from the 24-point artwork: an 11-point disc, a 2-point cutout, and the
+    /// from the 24-point artwork: an 11-point disc, a compact cutout, and the
     /// cutout center 5.66 points from the disc center. Zero brightness points
     /// straight up, matching CircularKnob; values then advance clockwise.
-    private func menuBarIcon(brightness: Double) -> NSImage {
+    private func menuBarIcon(brightness: Double, isConnected: Bool) -> NSImage {
         let imageSize = NSSize(width: 16, height: 16)
         let image = NSImage(size: imageSize, flipped: false) { rect in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
@@ -225,8 +232,8 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             let artworkScale = rect.width / 24
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let discRadius = 11 * artworkScale
-            let markerRadius = 2 * artworkScale
-            let markerOrbit = hypot(4, 4) * artworkScale
+            let markerRadius = 2.35 * artworkScale
+            let markerOrbit = hypot(3.4, 3.4) * artworkScale
             let normalizedBrightness = min(100, max(0, brightness)) / 100
             let angle = normalizedBrightness * 2 * Double.pi
             let markerCenter = CGPoint(
@@ -234,20 +241,38 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
                 y: center.y + CGFloat(cos(angle)) * markerOrbit
             )
 
-            context.addEllipse(in: CGRect(
+            let discRect = CGRect(
                 x: center.x - discRadius,
                 y: center.y - discRadius,
                 width: discRadius * 2,
                 height: discRadius * 2
-            ))
-            context.addEllipse(in: CGRect(
-                x: markerCenter.x - markerRadius,
-                y: markerCenter.y - markerRadius,
-                width: markerRadius * 2,
-                height: markerRadius * 2
-            ))
+            )
             context.setFillColor(NSColor.black.cgColor)
-            context.drawPath(using: .eoFill)
+
+            if isConnected {
+                context.addEllipse(in: discRect)
+                context.addEllipse(in: CGRect(
+                    x: markerCenter.x - markerRadius,
+                    y: markerCenter.y - markerRadius,
+                    width: markerRadius * 2,
+                    height: markerRadius * 2
+                ))
+                context.drawPath(using: .eoFill)
+            } else {
+                let outlineWidth = 2 * artworkScale
+                context.setStrokeColor(NSColor.black.cgColor)
+                context.setLineWidth(outlineWidth)
+                context.strokeEllipse(in: discRect.insetBy(
+                    dx: outlineWidth / 2,
+                    dy: outlineWidth / 2
+                ))
+                context.fillEllipse(in: CGRect(
+                    x: markerCenter.x - markerRadius,
+                    y: markerCenter.y - markerRadius,
+                    width: markerRadius * 2,
+                    height: markerRadius * 2
+                ))
+            }
             return true
         }
         image.isTemplate = true
@@ -257,6 +282,11 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private func refreshLiveConnectionItems() {
         let connected = viewModel.connected
         let disconnecting = viewModel.disconnecting
+
+        statusItem.button?.image = menuBarIcon(
+            brightness: viewModel.brightness,
+            isConnected: connected && !disconnecting
+        )
 
         liveConnectionItem?.image = assetImage(
             connected && !disconnecting ? "link_horizontal" : "link_horizontal_off"

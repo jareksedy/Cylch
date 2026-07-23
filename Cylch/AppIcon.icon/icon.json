@@ -1,16 +1,62 @@
 {
-  "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-  },
+  "fill" : "automatic",
   "groups" : [
     {
+      "blend-mode" : "plus-lighter",
+      "blur-material" : 0.5,
       "layers" : [
         {
           "blend-mode" : "normal",
           "fill" : {
             "linear-gradient" : [
-              "srgb:1.00000,0.18574,0.57340,1.00000",
-              "srgb:0.47684,0.50481,1.00000,1.00000"
+              "display-p3:0.00000,1.00000,0.98706,1.00000",
+              "display-p3:0.45493,1.00000,0.96288,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.5,
+                "y" : 1
+              },
+              "stop" : {
+                "x" : 0,
+                "y" : 0
+              }
+            }
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "cy-2 2.png",
+          "name" : "cy-2 2",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.4,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.25
+      },
+      "specular" : false,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    },
+    {
+      "blur-material" : 1,
+      "layers" : [
+        {
+          "blend-mode" : "screen",
+          "fill" : {
+            "linear-gradient" : [
+              "display-p3:0.25879,0.23926,0.28638,1.00000",
+              "display-p3:0.15686,0.13330,0.17651,1.00000"
             ],
             "orientation" : {
               "start" : {
@@ -23,8 +69,8 @@
               }
             }
           },
-          "image-name" : "Ellipse 1.png",
-          "name" : "Ellipse 1",
+          "image-name" : "cy-1.png",
+          "name" : "cy-1",
           "position" : {
             "scale" : 0.4,
             "translation-in-points" : [
@@ -34,13 +80,15 @@
           }
         }
       ],
+      "lighting" : "combined",
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 1
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.75
       }
     }
   ],
