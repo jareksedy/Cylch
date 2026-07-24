@@ -388,6 +388,9 @@ private struct ScrollWheelView: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            stopMonitoring()
+            guard window != nil else { return }
+
             monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
                 guard let self,
                       let eventWindow = event.window,
@@ -401,9 +404,14 @@ private struct ScrollWheelView: NSViewRepresentable {
         }
 
         override func removeFromSuperview() {
-            if let monitor { NSEvent.removeMonitor(monitor) }
-            monitor = nil
+            stopMonitoring()
             super.removeFromSuperview()
+        }
+
+        private func stopMonitoring() {
+            guard let monitor else { return }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
         }
     }
 }
