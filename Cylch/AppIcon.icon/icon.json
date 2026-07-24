@@ -6,28 +6,11 @@
       "blur-material" : 0.5,
       "layers" : [
         {
-          "blend-mode" : "normal",
           "fill" : {
-            "linear-gradient" : [
-              "display-p3:0.00000,1.00000,0.98706,1.00000",
-              "display-p3:0.45493,1.00000,0.96288,1.00000"
-            ],
-            "orientation" : {
-              "start" : {
-                "x" : 0.5,
-                "y" : 1
-              },
-              "stop" : {
-                "x" : 0,
-                "y" : 0
-              }
-            }
+            "solid" : "display-p3:0.43137,1.00000,1.00000,1.00000"
           },
-          "glass" : true,
-          "hidden" : false,
           "image-name" : "cy-2 2.png",
           "name" : "cy-2 2",
-          "opacity" : 1,
           "position" : {
             "scale" : 0.4,
             "translation-in-points" : [
@@ -61,11 +44,11 @@
             "orientation" : {
               "start" : {
                 "x" : 0.5,
-                "y" : 0
+                "y" : 0.5
               },
               "stop" : {
                 "x" : 0.5,
-                "y" : 0.7
+                "y" : 1
               }
             }
           },
