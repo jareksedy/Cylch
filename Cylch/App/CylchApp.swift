@@ -1,9 +1,3 @@
-//
-//  CylchApp.swift
-//  Cylch
-//
-//  Created by Ярослав on 09.05.2026.
-//
 
 import SwiftUI
 import AppKit
@@ -47,8 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Xcode Preview needs SwiftUI's scene lifecycle, while the shipped app uses
-/// AppKit so it can own and anchor its status-item popover.
 private struct CylchPreviewLifecycle: App {
     var body: some Scene {
         WindowGroup {

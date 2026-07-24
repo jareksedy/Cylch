@@ -50,13 +50,6 @@ struct CircularKnob: View {
             let displayedPercentage = Int((normalizedValue * 100).rounded())
 
             let isDark = colorScheme == .dark
-            // Translucent tints rather than opaque .windowBackgroundColor
-            // mixes: the window material is lighter than that color, so an
-            // opaque fill reads darker than the window. Tinting whatever the
-            // window actually draws keeps the body matched to it.
-            // Separate palettes per theme: opacities that read well on a
-            // dark background are nearly invisible on a light one.
-            // Sheen and shade tones for the polished conic sweep.
             let surfaceSheen = isDark
                 ? Color.white.opacity(0.035)
                 : Color.white.opacity(0.55)
@@ -71,10 +64,6 @@ struct CircularKnob: View {
             let bezelWidth: CGFloat = trackPadding - knobInset - 1
 
             ZStack {
-                // Neumorphic body: tints the window background showing
-                // through — a perfectly symmetric spun-metal conic sweep:
-                // identical highlights at the top and bottom, softer sheens
-                // on the sides and dark diagonals between them.
                 Circle()
                     .fill(
                         AngularGradient(
@@ -95,9 +84,6 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset)
 
-                // Broad 90-degree light gives the metal face a clear dome:
-                // the highlight begins directly above and rolls into a soft
-                // shade below while keeping the spun-metal sweep visible.
                 Circle()
                     .fill(
                         LinearGradient(
@@ -122,9 +108,6 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset + 1)
 
-                // A soft edge vignette bends the face away from the viewer
-                // on every side. Combined with the directional light above,
-                // it adds depth inside the knob instead of making it float.
                 Circle()
                     .fill(
                         RadialGradient(
@@ -140,8 +123,6 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset + 1)
 
-                // A restrained inner rim catches the same directional light
-                // and separates the convex face from the outer bezel.
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -158,9 +139,6 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset + 2)
 
-                // Convex bezel: the rim between the outer stroke and the
-                // groove is lit from above so it reads as a raised ring.
-                // Inset by an extra point so it doesn't wash out the stroke.
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -177,9 +155,6 @@ struct CircularKnob: View {
                     )
                     .padding(knobInset + 1 + bezelWidth / 2)
 
-                // Fine analog-dial markers form a separate ring just inside
-                // the gauge, with their outer tips aligned to one radius.
-                // Twenty divisions keep it calm; every fifth establishes rhythm.
                 ForEach(0 ..< 20, id: \.self) { index in
                     let isMajorMarker = index.isMultiple(of: 5)
                     let markerHeight: CGFloat = isMajorMarker ? 5 : 3
@@ -204,11 +179,6 @@ struct CircularKnob: View {
                         .rotationEffect(.degrees(Double(index) * 18))
                 }
 
-                // Engraved groove: a light edge peeking out just below the
-                // dark track line makes it read as carved into the surface.
-                // The edge fades out towards the bottom, where it would
-                // otherwise stack with the bezel's dark side and the track
-                // line into a striped "multiple grooves" look.
                 Circle()
                     .stroke(
                         LinearGradient(
@@ -229,11 +199,7 @@ struct CircularKnob: View {
                     .stroke(trackColor, lineWidth: trackWidth)
                     .padding(trackPadding)
 
-
                 if isEnabled {
-                    // A separate blurred copy preserves the gradient's own
-                    // colors in the glow instead of tinting the entire arc
-                    // with one generic shadow color.
                     Circle()
                         .trim(from: 0, to: gaugeProgress)
                         .stroke(
@@ -254,16 +220,9 @@ struct CircularKnob: View {
                         .stroke(gaugeGradient, style: StrokeStyle(lineWidth: gaugeWidth, lineCap: .round))
                         .padding(trackPadding)
                         .rotationEffect(.degrees(-90))
-                        // Must match the pointer dot's animation exactly —
-                        // any difference in curve or duration makes the dot
-                        // visibly lag behind the arc on fast scrolls.
                         .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: gaugeProgress)
-                        // Muted in the dark theme so the arc doesn't
-                        // overpower the UI, fully opaque in the light one.
                         .opacity(isDark ? 0.5 : 1)
                 } else {
-                    // Preserve the stored value while disabled, using the
-                    // same muted treatment as the readout, icon and markers.
                     Circle()
                         .trim(from: 0, to: gaugeProgress)
                         .stroke(
@@ -289,18 +248,6 @@ struct CircularKnob: View {
                     .animation(dragAngle == nil ? .smooth(duration: 0.15) : .linear(duration: 0.05), value: pointerAngle)
 
                 HStack(spacing: 5) {
-                    // A hidden "100" reserves the widest possible number; the
-                    // live value sits on its trailing edge at natural size,
-                    // with layout animations suppressed — otherwise the
-                    // withAnimation transaction from the scroll handler
-                    // animates the text frame and the digits slide around
-                    // on width changes (9→10, 99→100). The percent sign lives
-                    // outside the transition so its right edge never moves.
-                    // Tabular digits keep the readout visually anchored while
-                    // the value changes and the system odometer rolls.
-                    // ZStack alignment rather than overlay+fixedSize: the
-                    // latter mislaid the value on the first layout pass in
-                    // previews until the first change re-laid it out.
                     HStack(spacing: 0) {
                         ZStack(alignment: .trailing) {
                             Text("100")
@@ -308,10 +255,6 @@ struct CircularKnob: View {
 
                             Text("\(displayedPercentage)")
                                 .contentTransition(.numericText(value: normalizedValue))
-                                // Keep the fast odometer scoped to number
-                                // changes. Appearance transitions such as
-                                // enabled/disabled must stay in the parent's
-                                // transaction so the digits and % recolor as one.
                                 .animation(.linear(duration: 0.01), value: displayedPercentage)
                         }
 
@@ -319,11 +262,7 @@ struct CircularKnob: View {
                     }
                     .font(.system(size: 12, weight: .semibold).width(.expanded))
                     .monospacedDigit()
-                    // Optical centering: nudge the digits a hair left so the
-                    // value+icon group doesn't read as right-heavy.
                     .offset(x: -2)
-                    // Flatten the fast system odometer before applying one
-                    // accent glow to the complete readout.
                     .foregroundStyle(isEnabled ? Color.accentColor : inactiveElementColor)
                     .compositingGroup()
                     .blendMode(.normal)
@@ -354,10 +293,6 @@ struct CircularKnob: View {
             .opacity(isEnabled ? 1 : 0.4)
             .saturation(isEnabled ? 1 : 0)
             .contentShape(Circle())
-            // A nested, dense system material calms the desktop show-through
-            // without turning the knobs into two fixed dark discs. The shell
-            // and its external light/shade stay equally raised while disabled;
-            // only the interactive content above recedes.
             .background {
                 if usesPopoverSurface {
                     Circle()

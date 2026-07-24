@@ -1,7 +1,3 @@
-//
-//  UserDefaultsSettingsStore.swift
-//  Cylch
-//
 
 import Foundation
 import Darwin
@@ -9,8 +5,6 @@ import Darwin
 struct PersistedSettings: Sendable, Equatable {
     var selectedPort = ""
     var ledCount = 65
-    // Preserve the app's existing first-launch behavior. Once the user
-    // explicitly disconnects, the stored value becomes false.
     var shouldReconnect = true
     var selectedEffect = LEDEffect.rainbow.rawValue
     var staticColorName = LEDColor.palette[0].name
@@ -22,9 +16,6 @@ struct PersistedSettings: Sendable, Equatable {
     var scheduleEndMinute = 7 * 60
 }
 
-/// The single typed boundary between the app and UserDefaults. Keeping every
-/// key here prevents persistence details from leaking into the SwiftUI views
-/// and gives future migrations one place to live.
 @MainActor
 final class UserDefaultsSettingsStore {
     static let shared = UserDefaultsSettingsStore(
