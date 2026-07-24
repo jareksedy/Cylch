@@ -232,6 +232,7 @@ final class SettingsViewModel: ObservableObject {
 
         if isConnected {
             connectionPreference = true
+            AppAnalytics.logDeviceConnected()
         } else if !preserveReconnectPreferenceDuringFade {
             connectionPreference = false
         }

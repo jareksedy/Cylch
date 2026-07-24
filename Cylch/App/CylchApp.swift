@@ -1,6 +1,7 @@
 
 import SwiftUI
 import AppKit
+import FirebaseCore
 
 @main
 @MainActor
@@ -22,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        FirebaseApp.configure()
+
         let viewModel = SettingsViewModel.shared
         viewModel.autoConnectOnLaunch()
         menuBarController = MenuBarController(viewModel: viewModel)
