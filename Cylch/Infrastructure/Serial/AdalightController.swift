@@ -16,6 +16,15 @@ final class AdalightController {
     var onConnectedChanged: (@MainActor (Bool) -> Void)?
     var onError: (@MainActor (String) -> Void)?
 
+    private struct SerialFailure {
+        let operation: String
+        let code: Int32
+
+        var message: String {
+            "\(operation) failed: \(String(cString: strerror(code)))"
+        }
+    }
+
     private struct StreamState {
         struct FadeIn {
             let runGeneration: Int
@@ -206,13 +215,26 @@ final class AdalightController {
         }
 
         var lastLEDCount = 65
+        var streamFailure: SerialFailure?
+        var stoppedIntentionally = false
 
         defer {
-            let blankConfig = StreamConfig(brightness: 0, speed: 0, ledCount: lastLEDCount)
-            writeAll(makeFrame(config: blankConfig, gradientOffset: 0), to: fd)
+            let runIsCurrent = isCurrent(runGeneration)
+            if runIsCurrent, streamFailure == nil {
+                let blankConfig = StreamConfig(brightness: 0, speed: 0, ledCount: lastLEDCount)
+                writeAll(makeFrame(config: blankConfig, gradientOffset: 0), to: fd)
+            }
+
             close(fd)
-            deliver(ifCurrent: runGeneration) { [self] in
-                onConnectedChanged?(false)
+
+            if runIsCurrent {
+                let failureToReport = stoppedIntentionally ? nil : streamFailure
+                deliver(ifCurrent: runGeneration) { [self] in
+                    onConnectedChanged?(false)
+                    if let failureToReport {
+                        onError?("Connection lost: \(failureToReport.message)")
+                    }
+                }
             }
         }
 
@@ -227,6 +249,7 @@ final class AdalightController {
                fadeOut.runGeneration == runGeneration {
                 let elapsed = DispatchTime.now().uptimeNanoseconds - fadeOut.startedAtNanoseconds
                 if elapsed >= fadeOut.durationNanoseconds {
+                    stoppedIntentionally = true
                     break
                 }
 
@@ -278,7 +301,10 @@ final class AdalightController {
 
             lastLEDCount = max(1, min(300, config.ledCount))
 
-            writeAll(frame, to: fd)
+            if let failure = writeAll(frame, to: fd) {
+                streamFailure = failure
+                break
+            }
             recordLastFrame(frame, for: runGeneration)
 
             if !config.paused && config.effect == .rainbow {
@@ -409,7 +435,10 @@ final class AdalightController {
         return result >= 0 ? result : result + modulus
     }
 
-    private func writeAll(_ bytes: [UInt8], to fd: Int32) {
+    @discardableResult
+    private func writeAll(_ bytes: [UInt8], to fd: Int32) -> SerialFailure? {
+        var failure: SerialFailure?
+
         bytes.withUnsafeBytes { rawBuffer in
             guard let baseAddress = rawBuffer.baseAddress else {
                 return
@@ -424,11 +453,27 @@ final class AdalightController {
                 } else if result == -1 && errno == EINTR {
                     continue
                 } else {
-                    break
+                    failure = SerialFailure(
+                        operation: "Serial write",
+                        code: result == 0 ? EIO : errno
+                    )
+                    return
                 }
             }
         }
 
-        tcdrain(fd)
+        if let failure {
+            return failure
+        }
+
+        while tcdrain(fd) == -1 {
+            let code = errno
+            if code == EINTR {
+                continue
+            }
+            return SerialFailure(operation: "Serial drain", code: code)
+        }
+
+        return nil
     }
 }
