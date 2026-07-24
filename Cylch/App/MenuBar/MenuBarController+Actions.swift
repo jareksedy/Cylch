@@ -63,6 +63,24 @@ extension MenuBarController {
         settingsPopover.performClose(nil)
     }
 
+    func startMonitoringSettingsOutsideClicks() {
+        guard settingsOutsideClickMonitor == nil else { return }
+
+        settingsOutsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.closeSettingsPopoverIfShown()
+            }
+        }
+    }
+
+    func stopMonitoringSettingsOutsideClicks() {
+        guard let settingsOutsideClickMonitor else { return }
+        NSEvent.removeMonitor(settingsOutsideClickMonitor)
+        self.settingsOutsideClickMonitor = nil
+    }
+
     @objc func refreshPorts() {
         viewModel.refreshPorts()
     }

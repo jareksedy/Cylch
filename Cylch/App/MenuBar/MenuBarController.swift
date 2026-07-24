@@ -10,6 +10,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     let statusItem: NSStatusItem
     let menu = NSMenu()
     let settingsPopover = NSPopover()
+    var settingsOutsideClickMonitor: Any?
     var connectionStateObservation: AnyCancellable?
     var brightnessObservation: AnyCancellable?
     var liveConnectionItem: NSMenuItem?
@@ -47,10 +48,18 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        stopMonitoringSettingsOutsideClicks()
         statusItem.button?.highlight(false)
     }
 
     func popoverDidShow(_ notification: Notification) {
+        startMonitoringSettingsOutsideClicks()
         makeSettingsPopoverKey()
+    }
+
+    deinit {
+        if let settingsOutsideClickMonitor {
+            NSEvent.removeMonitor(settingsOutsideClickMonitor)
+        }
     }
 }
