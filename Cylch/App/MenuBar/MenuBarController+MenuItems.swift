@@ -7,6 +7,7 @@ import SwiftUI
 extension MenuBarController {
     func refreshLiveConnectionItems() {
         let connected = viewModel.connected
+        let connecting = viewModel.connecting
         let disconnecting = viewModel.disconnecting
 
         statusItem.button?.image = menuBarIcon(
@@ -17,7 +18,7 @@ extension MenuBarController {
         liveConnectionItem?.image = assetImage(
             connected && !disconnecting ? "connect_on" : "connect_off"
         )
-        liveRefreshItem?.isEnabled = !connected && !disconnecting
+        liveRefreshItem?.isEnabled = !connected && !connecting && !disconnecting
 
         if let livePortItem {
             updateMenuItem(livePortItem, from: portItem())
@@ -26,11 +27,15 @@ extension MenuBarController {
             updateMenuItem(liveLEDCountItem, from: ledCountItem())
         }
 
-        liveConnectItem?.title = disconnecting ? "Fading Out…" : connected ? "Disconnect" : "Connect"
+        liveConnectItem?.title = connecting
+            ? "Connecting…"
+            : disconnecting ? "Fading Out…" : connected ? "Disconnect" : "Connect"
         liveConnectItem?.image = assetImage(
             connected || disconnecting ? "connect_off" : "connect_on"
         )
-        liveConnectItem?.isEnabled = !disconnecting && (connected || !viewModel.selectedPort.isEmpty)
+        liveConnectItem?.isEnabled = !connecting
+            && !disconnecting
+            && (connected || !viewModel.selectedPort.isEmpty)
     }
 
     func updateMenuItem(_ item: NSMenuItem, from replacement: NSMenuItem) {
@@ -40,7 +45,7 @@ extension MenuBarController {
     }
 
     func portItem() -> NSMenuItem {
-        if viewModel.connected {
+        if viewModel.connected || viewModel.connecting {
             return disabledItem("Port: \(shortPortName(viewModel.selectedPort))")
         }
 
@@ -68,7 +73,7 @@ extension MenuBarController {
 
     func ledCountItem() -> NSMenuItem {
         let title = "LED count: \(viewModel.ledCount)"
-        guard !viewModel.connected else { return disabledItem(title) }
+        guard !viewModel.connected, !viewModel.connecting else { return disabledItem(title) }
 
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let submenu = makeMenu(title: "LED count")

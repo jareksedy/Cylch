@@ -81,7 +81,7 @@ extension MenuBarController {
     }
 
     @objc func toggleConnection() {
-        if viewModel.disconnecting {
+        if viewModel.connecting || viewModel.disconnecting {
             return
         } else if viewModel.connected {
             viewModel.stopStreaming()

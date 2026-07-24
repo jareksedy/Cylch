@@ -51,6 +51,7 @@ final class SettingsViewModel: ObservableObject {
         didSet { persistSettings() }
     }
     @Published var connected: Bool = false
+    @Published private(set) var connecting: Bool = false
     @Published private(set) var disconnecting: Bool = false
     @Published var availablePorts: [String] = []
     @Published var errorMessage: String?
@@ -151,7 +152,8 @@ final class SettingsViewModel: ObservableObject {
         pushConfig()
 
         guard connectionPreference,
-              !connected else {
+              !connected,
+              !connecting else {
             return
         }
 
@@ -179,7 +181,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func connect() {
-        guard !disconnecting else { return }
+        guard !connecting, !connected, !disconnecting else { return }
 
         guard !selectedPort.isEmpty else {
             errorMessage = "No serial port selected."
@@ -187,6 +189,7 @@ final class SettingsViewModel: ObservableObject {
         }
 
         errorMessage = nil
+        connecting = true
         connectionPreference = true
         persistSettings()
         controller.start(
@@ -224,6 +227,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private func connectionStateDidChange(_ isConnected: Bool) {
+        connecting = false
         connected = isConnected
 
         if isConnected {

@@ -176,7 +176,7 @@ struct ConnectionPopoverView: View {
                         GlyphButton(
                             systemName: "arrow.trianglehead.2.clockwise.rotate.90",
                             symbolSize: 18,
-                            isEnabled: !viewModel.connected
+                            isEnabled: !viewModel.connected && !viewModel.connecting
                         ) {
                             viewModel.refreshPorts()
                         }
@@ -187,12 +187,12 @@ struct ConnectionPopoverView: View {
 
                 PopoverRow(label: "LED count") {
                     CapsuleStepper(value: $viewModel.ledCount, range: 1...300)
-                        .disabled(viewModel.connected)
-                        .opacity(viewModel.connected ? 0.45 : 1)
+                        .disabled(viewModel.connected || viewModel.connecting)
+                        .opacity(viewModel.connected || viewModel.connecting ? 0.45 : 1)
                 }
 
                 Button {
-                    if viewModel.disconnecting {
+                    if viewModel.connecting || viewModel.disconnecting {
                         return
                     } else if viewModel.connected {
                         viewModel.stopStreaming()
@@ -207,12 +207,28 @@ struct ConnectionPopoverView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 13, height: 13)
 
-                        Text(viewModel.disconnecting ? "Fading Out…" : viewModel.connected ? "Disconnect" : "Connect")
+                        Text(
+                            viewModel.connecting
+                                ? "Connecting…"
+                                : viewModel.disconnecting
+                                    ? "Fading Out…"
+                                    : viewModel.connected ? "Disconnect" : "Connect"
+                        )
                     }
                 }
                 .buttonStyle(ActionCapsuleButtonStyle(prominent: !viewModel.connected))
-                .disabled(viewModel.disconnecting || (!viewModel.connected && viewModel.selectedPort.isEmpty))
-                .opacity(viewModel.disconnecting || (!viewModel.connected && viewModel.selectedPort.isEmpty) ? 0.45 : 1)
+                .disabled(
+                    viewModel.connecting
+                        || viewModel.disconnecting
+                        || (!viewModel.connected && viewModel.selectedPort.isEmpty)
+                )
+                .opacity(
+                    viewModel.connecting
+                        || viewModel.disconnecting
+                        || (!viewModel.connected && viewModel.selectedPort.isEmpty)
+                        ? 0.45
+                        : 1
+                )
 
                 if let errorMessage = viewModel.errorMessage {
                     Text(errorMessage)
@@ -266,8 +282,8 @@ struct ConnectionPopoverView: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .controlCapsule()
-        .disabled(viewModel.connected)
-        .opacity(viewModel.connected ? 0.5 : 1)
+        .disabled(viewModel.connected || viewModel.connecting)
+        .opacity(viewModel.connected || viewModel.connecting ? 0.5 : 1)
     }
 
     private static func shortPortName(_ port: String) -> String {

@@ -111,7 +111,7 @@ extension MenuBarController {
         submenu.addItem(portItem)
 
         let refreshItem = actionItem("Refresh Ports", action: #selector(refreshPorts))
-        refreshItem.isEnabled = !viewModel.connected && !viewModel.disconnecting
+        refreshItem.isEnabled = !viewModel.connected && !viewModel.connecting && !viewModel.disconnecting
         liveRefreshItem = refreshItem
         submenu.addItem(refreshItem)
 
@@ -122,11 +122,17 @@ extension MenuBarController {
         submenu.addItem(.separator())
 
         let connectItem = actionItem(
-            viewModel.disconnecting ? "Fading Out…" : viewModel.connected ? "Disconnect" : "Connect",
+            viewModel.connecting
+                ? "Connecting…"
+                : viewModel.disconnecting
+                    ? "Fading Out…"
+                    : viewModel.connected ? "Disconnect" : "Connect",
             image: assetImage(viewModel.connected || viewModel.disconnecting ? "connect_off" : "connect_on"),
             action: #selector(toggleConnection)
         )
-        connectItem.isEnabled = !viewModel.disconnecting && (viewModel.connected || !viewModel.selectedPort.isEmpty)
+        connectItem.isEnabled = !viewModel.connecting
+            && !viewModel.disconnecting
+            && (viewModel.connected || !viewModel.selectedPort.isEmpty)
         liveConnectItem = connectItem
         submenu.addItem(connectItem)
 
@@ -135,14 +141,17 @@ extension MenuBarController {
     }
 
     func observeConnectionState() {
-        connectionStateObservation = Publishers.CombineLatest(
+        connectionStateObservation = Publishers.CombineLatest3(
             viewModel.$connected,
+            viewModel.$connecting,
             viewModel.$disconnecting
         )
         .removeDuplicates { previous, current in
-            previous.0 == current.0 && previous.1 == current.1
+            previous.0 == current.0
+                && previous.1 == current.1
+                && previous.2 == current.2
         }
-        .sink { [weak self] _, _ in
+        .sink { [weak self] _, _, _ in
             DispatchQueue.main.async { [weak self] in
                 self?.refreshLiveConnectionItems()
             }
