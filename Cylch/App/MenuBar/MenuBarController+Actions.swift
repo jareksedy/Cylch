@@ -153,7 +153,7 @@ extension MenuBarController {
         paragraphStyle.alignment = .center
 
         let credits = NSAttributedString(
-            string: "A lightweight menu bar app for controlling addressable LED lighting.",
+            string: "Built for controlling Adalight-compatible LED hardware over USB serial on macOS.",
             attributes: [
                 .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
                 .foregroundColor: NSColor.secondaryLabelColor,
