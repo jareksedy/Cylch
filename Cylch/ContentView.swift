@@ -122,8 +122,8 @@ struct SettingsView: View {
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 15, height: 15)
-                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(Color.accentColor)
 
                 Text("Settings")
                     .font(.system(size: 15, weight: .semibold))
@@ -173,7 +173,7 @@ struct SettingsView: View {
         Button {
             showConnectionPopover.toggle()
         } label: {
-            Image("link_horizontal")
+            Image(viewModel.connected ? "link_horizontal" : "link_horizontal_off")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 16, height: 16)
