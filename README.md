@@ -6,6 +6,8 @@
 
 A native macOS menu bar app for driving Adalight-compatible LED strips over USB serial — with fluid controls, thoughtful automation, and a delightfully small footprint.
 
+**Designed and developed specifically for SkyDimo LED strips.**
+
 <p>
   <img src="https://img.shields.io/badge/macOS-15.0%2B-111111?style=for-the-badge&logo=apple&logoColor=white" alt="macOS 15.0+">
   <img src="https://img.shields.io/badge/Swift-5-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 5">
