@@ -15,29 +15,17 @@ A native macOS menu bar app for driving Adalight-compatible LED strips over USB 
 
 </div>
 
-<img src="Images/Desktop.jpg" alt="Cylch creating colorful ambient lighting around a desktop monitor" width="100%">
+<div align="center">
+  <img src="Images/Desktop-rounded.png" alt="Cylch creating colorful ambient lighting around a desktop monitor" width="100%">
+</div>
 
 ## Light that stays out of your way
 
 Cylch lives in the menu bar and turns a compatible LED setup into a natural part of macOS. Connect your controller, choose an effect, and shape the atmosphere without opening a heavy desktop app.
 
-<table>
-  <tr>
-    <td width="58%">
-      <h3>Designed to feel native</h3>
-      <p>A focused SwiftUI interface with tactile circular controls, subtle transitions, and quick access from the menu bar.</p>
-      <br>
-      <h3>Your lighting, your rhythm</h3>
-      <p>Move from a flowing rainbow to a carefully chosen static color. Tune brightness and animation speed in real time.</p>
-      <br>
-      <h3>Quiet when you need it</h3>
-      <p>Set overnight hours and Cylch will turn the lights off automatically, including schedules that cross midnight.</p>
-    </td>
-    <td width="42%" align="center">
-      <img src="Images/Settings.png" alt="Cylch settings popover on macOS" width="100%">
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="Images/Settings.png" alt="Cylch settings popover on macOS" width="468">
+</p>
 
 ## Highlights
 
