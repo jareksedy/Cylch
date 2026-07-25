@@ -6,13 +6,13 @@ import Foundation
 final class SettingsViewModel: ObservableObject {
     static let shared = SettingsViewModel()
 
-    @Published var brightness: Double = 75 {
+    @Published var brightness: Double = 60 {
         didSet {
             persistSettings()
             pushConfig()
         }
     }
-    @Published var speed: Double = 25 {
+    @Published var speed: Double = 40 {
         didSet {
             persistSettings()
             pushConfig()

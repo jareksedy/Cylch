@@ -8,8 +8,8 @@ struct PersistedSettings: Sendable, Equatable {
     var shouldReconnect = true
     var selectedEffect = LEDEffect.rainbow.rawValue
     var staticColorName = LEDColor.palette[0].name
-    var brightness = 75.0
-    var speed = 25.0
+    var brightness = 60.0
+    var speed = 40.0
     var paused = false
     var scheduleEnabled = false
     var scheduleStartMinute = 23 * 60

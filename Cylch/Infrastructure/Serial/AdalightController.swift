@@ -47,7 +47,7 @@ final class AdalightController {
             let fromFrame: [UInt8]
         }
 
-        var config = StreamConfig(brightness: 75, speed: 25, ledCount: 65)
+        var config = StreamConfig(brightness: 60, speed: 40, ledCount: 65)
         var generation = 0
         var lastFrame: [UInt8]?
         var fadeIn: FadeIn?
