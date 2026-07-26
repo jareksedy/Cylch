@@ -170,13 +170,29 @@ extension MenuBarController {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
 
-        let credits = NSAttributedString(
-            string: "Built for controlling Adalight-compatible LED hardware over USB serial on macOS.",
+        let credits = NSMutableAttributedString(
+            string: "Built for controlling Adalight-compatible LED hardware over USB serial on macOS.\n\nApp Website · GitHub",
             attributes: [
                 .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
                 .foregroundColor: NSColor.secondaryLabelColor,
                 .paragraphStyle: paragraphStyle
             ]
+        )
+        let websiteRange = (credits.string as NSString).range(of: "App Website")
+        credits.addAttributes(
+            [
+                .link: URL(string: "https://cylch.asia/")!,
+                .foregroundColor: NSColor.linkColor
+            ],
+            range: websiteRange
+        )
+        let githubRange = (credits.string as NSString).range(of: "GitHub")
+        credits.addAttributes(
+            [
+                .link: URL(string: "https://github.com/jareksedy/Cylch")!,
+                .foregroundColor: NSColor.linkColor
+            ],
+            range: githubRange
         )
 
         NSApplication.shared.orderFrontStandardAboutPanel(options: [
