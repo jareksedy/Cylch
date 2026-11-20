@@ -1,2 +1,8 @@
 # Firebase configuration is kept locally and must not be committed.
-/Cylch/GoogleService-Info.plist
+GoogleService-Info.plist
+
+# macOS
+.DS_Store
+
+# Xcode per-user state
+xcuserdata/
