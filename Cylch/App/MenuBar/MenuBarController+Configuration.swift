@@ -98,6 +98,8 @@ extension MenuBarController {
         quitItem.keyEquivalent = "q"
         quitItem.keyEquivalentModifierMask = .command
         menu.addItem(quitItem)
+
+        showImages(in: menu)
     }
 
     func connectionItem() -> NSMenuItem {

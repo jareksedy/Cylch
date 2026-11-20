@@ -42,6 +42,21 @@ extension MenuBarController {
         item.title = replacement.title
         item.isEnabled = replacement.isEnabled
         item.submenu = replacement.submenu
+        if let submenu = item.submenu {
+            showImages(in: submenu)
+        }
+    }
+
+    /// macOS 27 hides menu item images by default, but these menus rely on them.
+    func showImages(in menu: NSMenu) {
+        guard #available(macOS 27.0, *) else { return }
+
+        for item in menu.items {
+            item.preferredImageVisibility = .visible
+            if let submenu = item.submenu {
+                showImages(in: submenu)
+            }
+        }
     }
 
     func portItem() -> NSMenuItem {
