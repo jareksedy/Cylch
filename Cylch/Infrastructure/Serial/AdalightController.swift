@@ -13,8 +13,10 @@ struct StreamConfig: Sendable {
 }
 
 final class AdalightController {
+    /// Reports `true` once the port is open and `false` after an intentional stop.
     var onConnectedChanged: (@MainActor (Bool) -> Void)?
-    var onError: (@MainActor (String) -> Void)?
+    /// Reports a port that failed to open or a stream that broke unexpectedly.
+    var onConnectionFailed: (@MainActor (String) -> Void)?
 
     private struct SerialFailure {
         let operation: String
@@ -192,8 +194,7 @@ final class AdalightController {
         let fd = open(port, O_RDWR | O_NOCTTY)
         guard fd != -1 else {
             deliver(ifCurrent: runGeneration) { [self] in
-                onConnectedChanged?(false)
-                onError?("Cannot open port: \(port)")
+                onConnectionFailed?("Cannot open port: \(port)")
             }
             return
         }
@@ -201,8 +202,7 @@ final class AdalightController {
         guard configureSerialPort(fd) else {
             close(fd)
             deliver(ifCurrent: runGeneration) { [self] in
-                onConnectedChanged?(false)
-                onError?("Failed to configure serial port: \(port)")
+                onConnectionFailed?("Failed to configure serial port: \(port)")
             }
             return
         }
@@ -230,9 +230,10 @@ final class AdalightController {
             if runIsCurrent {
                 let failureToReport = stoppedIntentionally ? nil : streamFailure
                 deliver(ifCurrent: runGeneration) { [self] in
-                    onConnectedChanged?(false)
                     if let failureToReport {
-                        onError?("Connection lost: \(failureToReport.message)")
+                        onConnectionFailed?("Connection lost: \(failureToReport.message)")
+                    } else {
+                        onConnectedChanged?(false)
                     }
                 }
             }

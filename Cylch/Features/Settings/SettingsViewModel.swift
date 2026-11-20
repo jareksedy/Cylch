@@ -83,11 +83,25 @@ final class SettingsViewModel: ObservableObject {
     private let settingsStore: UserDefaultsSettingsStore
     private var connectionPreference: Bool
     private let controller = AdalightController()
+    private let deviceMonitor = SerialDeviceMonitor()
+    private var serialDevices: [SerialDeviceIdentity] = []
+    /// The physical device the stream was started on.
+    private var activeDevice: SerialDeviceIdentity?
+    /// The device to stream to again once it reappears after dropping off the bus.
+    private var reconnectTarget: SerialDeviceIdentity?
+    private var reconnectGraceTask: Task<Void, Never>?
+    private var reconnectRetryTask: Task<Void, Never>?
+    private var reconnectAttemptsLeft = 0
     private var scheduleTask: Task<Void, Never>?
     private var preserveReconnectPreferenceDuringFade = false
     private var disconnectionCompletions: [() -> Void] = []
 
     private static let lightTransitionDuration: TimeInterval = 0.5
+    /// How long the stream stays "connected" while waiting for a dropped device to come back.
+    private static let reconnectGracePeriod: Duration = .seconds(3)
+    private static let reconnectRetryInterval: Duration = .milliseconds(500)
+    /// A freshly attached port may not be ready to open yet, so allow a few retries.
+    private static let maxReconnectAttempts = 10
 
     convenience init() {
         self.init(settingsStore: .shared)
@@ -121,32 +135,54 @@ final class SettingsViewModel: ObservableObject {
             }
         }
 
-        controller.onError = { [weak self] message in
+        controller.onConnectionFailed = { [weak self] message in
             Task { @MainActor in
-                self?.errorMessage = message
+                self?.connectionDidFail(message)
             }
+        }
+
+        deviceMonitor.onDevicesChanged = { [weak self] devices in
+            self?.serialDevicesDidChange(devices)
         }
 
         persistSettings()
     }
 
     func onAppear() {
+        deviceMonitor.start()
         refreshPorts()
         startScheduleMonitor()
         pushConfig()
     }
 
     func refreshPorts() {
-        let ports = Self.discoverSerialPorts()
+        updateAvailablePorts(SerialDeviceMonitor.currentDevices())
+    }
+
+    private func updateAvailablePorts(_ devices: [SerialDeviceIdentity]) {
+        serialDevices = devices.filter {
+            Self.isSupportedUSBSerialDeviceName(($0.path as NSString).lastPathComponent)
+        }
+        let ports = serialDevices.map(\.path)
         availablePorts = ports
+
+        // Keep the port of a device being streamed to or waited for, even while it is gone.
+        guard !connected, !connecting, reconnectTarget == nil else { return }
 
         if selectedPort.isEmpty || !ports.contains(selectedPort) {
             selectedPort = Self.preferredPort(in: ports) ?? ports.first ?? ""
         }
     }
 
+    private func serialDevicesDidChange(_ devices: [SerialDeviceIdentity]) {
+        updateAvailablePorts(devices)
+        reconnectAttemptsLeft = Self.maxReconnectAttempts
+        reconnectIfTargetAvailable()
+    }
+
     func autoConnectOnLaunch() {
         let portToRestore = selectedPort
+        deviceMonitor.start()
         refreshPorts()
         startScheduleMonitor()
         pushConfig()
@@ -189,11 +225,17 @@ final class SettingsViewModel: ObservableObject {
         }
 
         errorMessage = nil
-        connecting = true
+        cancelReconnect()
         connectionPreference = true
         persistSettings()
+        startStream(port: selectedPort)
+    }
+
+    private func startStream(port: String) {
+        connecting = true
+        activeDevice = serialDevices.first { $0.path == port }
         controller.start(
-            port: selectedPort,
+            port: port,
             initialConfig: currentConfig,
             fadeInDuration: Self.lightTransitionDuration
         )
@@ -221,19 +263,110 @@ final class SettingsViewModel: ObservableObject {
     private func beginFadeOut(preservingReconnectPreference: Bool) {
         guard connected, !disconnecting else { return }
 
+        // While waiting for the device to come back there is no live stream to fade out.
+        let hasLiveStream = reconnectTarget == nil
+        cancelReconnect()
         preserveReconnectPreferenceDuringFade = preservingReconnectPreference
         disconnecting = true
-        controller.fadeOutAndStop(duration: Self.lightTransitionDuration)
+        controller.fadeOutAndStop(duration: hasLiveStream ? Self.lightTransitionDuration : 0)
+    }
+
+    private func connectionDidFail(_ message: String) {
+        connecting = false
+
+        if disconnecting {
+            connectionStateDidChange(false)
+            return
+        }
+
+        if reconnectTarget == nil, connected, let activeDevice {
+            beginReconnect(to: activeDevice)
+            return
+        }
+
+        if reconnectTarget != nil {
+            if reconnectGraceTask != nil || reconnectAttemptsLeft > 0 {
+                scheduleReconnectRetry()
+            }
+            return
+        }
+
+        connectionStateDidChange(false)
+        errorMessage = message
+    }
+
+    /// A broken stream usually means the device briefly dropped off the USB bus, for
+    /// example when another device on the same hub is unplugged. Keep the stream
+    /// "connected" for a grace period and pick the device up again under whatever
+    /// port name it reappears with.
+    private func beginReconnect(to device: SerialDeviceIdentity) {
+        reconnectTarget = device
+        reconnectAttemptsLeft = Self.maxReconnectAttempts
+        reconnectGraceTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.reconnectGracePeriod)
+            guard !Task.isCancelled else { return }
+            self?.reconnectGracePeriodDidExpire()
+        }
+        reconnectIfTargetAvailable()
+    }
+
+    private func reconnectGracePeriodDidExpire() {
+        reconnectGraceTask = nil
+        reconnectRetryTask?.cancel()
+        reconnectRetryTask = nil
+        guard reconnectTarget != nil, connected else { return }
+
+        // The device is really gone. Show it as disconnected, but keep waiting for it.
+        connectionStateDidChange(false)
+        errorMessage = "LED device disconnected. It will reconnect when plugged back in."
+    }
+
+    private func scheduleReconnectRetry() {
+        reconnectRetryTask?.cancel()
+        reconnectRetryTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.reconnectRetryInterval)
+            guard !Task.isCancelled else { return }
+            self?.refreshPorts()
+            self?.reconnectIfTargetAvailable()
+        }
+    }
+
+    private func reconnectIfTargetAvailable() {
+        guard let reconnectTarget,
+              !connecting,
+              !disconnecting,
+              let device = serialDevices.first(where: { reconnectTarget.matches($0) }) else {
+            return
+        }
+
+        reconnectAttemptsLeft -= 1
+        selectedPort = device.path
+        startStream(port: device.path)
+    }
+
+    private func cancelReconnect() {
+        reconnectTarget = nil
+        reconnectGraceTask?.cancel()
+        reconnectGraceTask = nil
+        reconnectRetryTask?.cancel()
+        reconnectRetryTask = nil
     }
 
     private func connectionStateDidChange(_ isConnected: Bool) {
+        let wasConnected = connected
         connecting = false
         connected = isConnected
 
         if isConnected {
+            if reconnectTarget != nil {
+                cancelReconnect()
+                errorMessage = nil
+            }
             connectionPreference = true
-            AppAnalytics.logDeviceConnected()
-        } else if !preserveReconnectPreferenceDuringFade {
+            if !wasConnected {
+                AppAnalytics.logDeviceConnected()
+            }
+        } else if !preserveReconnectPreferenceDuringFade, reconnectTarget == nil {
             connectionPreference = false
         }
 
@@ -330,28 +463,6 @@ final class SettingsViewModel: ObservableObject {
 
     private static func preferredPort(in ports: [String]) -> String? {
         ports.first { $0.lowercased().contains("usbserial") } ?? ports.first
-    }
-
-    private static func discoverSerialPorts() -> [String] {
-        guard let directory = opendir("/dev") else {
-            return []
-        }
-        defer { closedir(directory) }
-
-        var ports: [String] = []
-        while let entry = readdir(directory) {
-            let name = withUnsafePointer(to: &entry.pointee.d_name) { pointer in
-                pointer.withMemoryRebound(to: CChar.self, capacity: Int(MAXNAMLEN)) {
-                    String(cString: $0)
-                }
-            }
-
-            if isSupportedUSBSerialDeviceName(name) {
-                ports.append("/dev/\(name)")
-            }
-        }
-
-        return ports.sorted()
     }
 
     private static func isSupportedUSBSerialDeviceName(_ name: String) -> Bool {
