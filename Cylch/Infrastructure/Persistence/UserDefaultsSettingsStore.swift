@@ -14,6 +14,7 @@ struct PersistedSettings: Sendable, Equatable {
     var scheduleEnabled = false
     var scheduleStartMinute = 23 * 60
     var scheduleEndMinute = 7 * 60
+    var turnOffWithDisplay = false
 }
 
 @MainActor
@@ -34,6 +35,7 @@ final class UserDefaultsSettingsStore {
         static let scheduleEnabled = "settings.schedule.enabled"
         static let scheduleStartMinute = "settings.schedule.startMinute"
         static let scheduleEndMinute = "settings.schedule.endMinute"
+        static let turnOffWithDisplay = "settings.display.turnOffWithDisplay"
     }
 
     private let defaults: UserDefaults?
@@ -80,6 +82,9 @@ final class UserDefaultsSettingsStore {
         if defaults.object(forKey: Key.scheduleEndMinute) != nil {
             settings.scheduleEndMinute = defaults.integer(forKey: Key.scheduleEndMinute)
         }
+        if defaults.object(forKey: Key.turnOffWithDisplay) != nil {
+            settings.turnOffWithDisplay = defaults.bool(forKey: Key.turnOffWithDisplay)
+        }
 
         return settings
     }
@@ -98,5 +103,6 @@ final class UserDefaultsSettingsStore {
         defaults.set(settings.scheduleEnabled, forKey: Key.scheduleEnabled)
         defaults.set(settings.scheduleStartMinute, forKey: Key.scheduleStartMinute)
         defaults.set(settings.scheduleEndMinute, forKey: Key.scheduleEndMinute)
+        defaults.set(settings.turnOffWithDisplay, forKey: Key.turnOffWithDisplay)
     }
 }

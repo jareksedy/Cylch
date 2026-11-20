@@ -74,6 +74,12 @@ final class SettingsViewModel: ObservableObject {
         }
     }
     @Published private(set) var scheduleActive: Bool = false
+    @Published var turnOffWithDisplay: Bool = false {
+        didSet {
+            persistSettings()
+            pushConfig()
+        }
+    }
 
     var scheduleSummary: String {
         guard scheduleEnabled else { return "Schedule is off" }
@@ -84,6 +90,7 @@ final class SettingsViewModel: ObservableObject {
     private var connectionPreference: Bool
     private let controller = AdalightController()
     private let deviceMonitor = SerialDeviceMonitor()
+    private let displaySleepMonitor = DisplaySleepMonitor()
     private var serialDevices: [SerialDeviceIdentity] = []
     /// The physical device the stream was started on.
     private var activeDevice: SerialDeviceIdentity?
@@ -128,6 +135,7 @@ final class SettingsViewModel: ObservableObject {
         scheduleEndTime = Self.timeToday(
             minuteOfDay: min(1_439, max(0, persisted.scheduleEndMinute))
         )
+        turnOffWithDisplay = persisted.turnOffWithDisplay
 
         controller.onConnectedChanged = { [weak self] isConnected in
             Task { @MainActor in
@@ -145,11 +153,17 @@ final class SettingsViewModel: ObservableObject {
             self?.serialDevicesDidChange(devices)
         }
 
+        displaySleepMonitor.onDisplaysAsleepChanged = { [weak self] _, animated in
+            guard let self, turnOffWithDisplay else { return }
+            pushConfig(visualTransitionDuration: animated ? Self.lightTransitionDuration : 0)
+        }
+
         persistSettings()
     }
 
     func onAppear() {
         deviceMonitor.start()
+        displaySleepMonitor.start()
         refreshPorts()
         startScheduleMonitor()
         pushConfig()
@@ -183,6 +197,7 @@ final class SettingsViewModel: ObservableObject {
     func autoConnectOnLaunch() {
         let portToRestore = selectedPort
         deviceMonitor.start()
+        displaySleepMonitor.start()
         refreshPorts()
         startScheduleMonitor()
         pushConfig()
@@ -400,19 +415,21 @@ final class SettingsViewModel: ObservableObject {
             paused: paused,
             scheduleEnabled: scheduleEnabled,
             scheduleStartMinute: Self.minuteOfDay(from: scheduleStartTime, calendar: calendar),
-            scheduleEndMinute: Self.minuteOfDay(from: scheduleEndTime, calendar: calendar)
+            scheduleEndMinute: Self.minuteOfDay(from: scheduleEndTime, calendar: calendar),
+            turnOffWithDisplay: turnOffWithDisplay
         ))
     }
 
-    private func pushConfig() {
+    private func pushConfig(visualTransitionDuration: TimeInterval = SettingsViewModel.lightTransitionDuration) {
         controller.updateConfig(
             currentConfig,
-            visualTransitionDuration: Self.lightTransitionDuration
+            visualTransitionDuration: visualTransitionDuration
         )
     }
 
     private var currentConfig: StreamConfig {
-        StreamConfig(effect: selectedEffect, staticColor: staticColor, brightness: brightness, speed: speed, ledCount: ledCount, paused: paused, lightsOff: scheduleActive)
+        let lightsOff = scheduleActive || (turnOffWithDisplay && displaySleepMonitor.displaysAsleep)
+        return StreamConfig(effect: selectedEffect, staticColor: staticColor, brightness: brightness, speed: speed, ledCount: ledCount, paused: paused, lightsOff: lightsOff)
     }
 
     private func startScheduleMonitor() {

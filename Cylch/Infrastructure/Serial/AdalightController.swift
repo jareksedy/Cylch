@@ -58,6 +58,9 @@ final class AdalightController {
     }
 
     private let state = OSAllocatedUnfairLock(initialState: StreamState())
+    /// Wakes an idle stream as soon as there is something new to show.
+    private let wakeSignal = DispatchSemaphore(value: 0)
+    private static let idleCheckInterval: DispatchTimeInterval = .seconds(1)
 
     func updateConfig(_ config: StreamConfig, visualTransitionDuration: TimeInterval = 0) {
         let durationNanoseconds = UInt64(max(0, visualTransitionDuration) * 1_000_000_000)
@@ -85,6 +88,7 @@ final class AdalightController {
 
             state.config = config
         }
+        wakeSignal.signal()
     }
 
     func start(port: String, initialConfig: StreamConfig, fadeInDuration: TimeInterval = 0) {
@@ -104,6 +108,7 @@ final class AdalightController {
             state.visualTransition = nil
             return state.generation
         }
+        wakeSignal.signal()
 
         DispatchQueue(label: "AdalightSerialStream", qos: .utility).async { [weak self] in
             self?.runLoop(port: port, runGeneration: runGeneration)
@@ -138,6 +143,7 @@ final class AdalightController {
             state.visualTransition = nil
             return false
         }
+        wakeSignal.signal()
 
         if shouldStopImmediately {
             stopImmediately()
@@ -152,6 +158,7 @@ final class AdalightController {
             state.fadeOut = nil
             state.visualTransition = nil
         }
+        wakeSignal.signal()
 
         Task { @MainActor [onConnectedChanged] in
             onConnectedChanged?(false)
@@ -240,6 +247,7 @@ final class AdalightController {
         }
 
         var gradientOffset = 0.0
+        var lastSentFrame: [UInt8]?
 
         while isCurrent(runGeneration) {
             let snapshot = streamSnapshot()
@@ -302,11 +310,20 @@ final class AdalightController {
 
             lastLEDCount = max(1, min(300, config.ledCount))
 
+            // Once the strip is dark and stays dark, stop streaming until something changes.
+            if frame == lastSentFrame, frame.dropFirst(6).allSatisfy({ $0 == 0 }) {
+                _ = wakeSignal.wait(timeout: .now() + Self.idleCheckInterval)
+                continue
+            }
+
             if let failure = writeAll(frame, to: fd) {
                 streamFailure = failure
                 break
             }
+            lastSentFrame = frame
             recordLastFrame(frame, for: runGeneration)
+            // Changes signaled up to now are picked up by the next snapshot anyway.
+            while wakeSignal.wait(timeout: .now()) == .success {}
 
             if !config.paused && config.effect == .rainbow {
                 gradientOffset = positiveModulo(

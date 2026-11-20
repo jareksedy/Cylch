@@ -68,6 +68,12 @@ extension MenuBarController {
         ))
         menu.addItem(.separator())
 
+        menu.addItem(actionItem(
+            "Turn Off with Display",
+            image: assetImage(viewModel.turnOffWithDisplay ? "switcher_on" : "switcher_off"),
+            action: #selector(toggleTurnOffWithDisplay)
+        ))
+
         let launchAtLoginStatus = SMAppService.mainApp.status
         let launchAtLoginImageName: String
 
@@ -89,6 +95,7 @@ extension MenuBarController {
             launchAtLoginItem.toolTip = "Approval required in System Settings"
         }
         menu.addItem(launchAtLoginItem)
+        menu.addItem(.separator())
 
         let quitItem = actionItem(
             "Quit",

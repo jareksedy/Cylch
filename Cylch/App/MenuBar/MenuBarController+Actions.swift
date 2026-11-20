@@ -138,6 +138,10 @@ extension MenuBarController {
         viewModel.speed = Double(level)
     }
 
+    @objc func toggleTurnOffWithDisplay() {
+        viewModel.turnOffWithDisplay.toggle()
+    }
+
     @objc func toggleLaunchAtLogin() {
         let service = SMAppService.mainApp
 

@@ -301,22 +301,7 @@ struct SchedulePopoverView: View {
             headerOpticalOffset: 3
         ) {
             VStack(spacing: 16) {
-                HStack(spacing: 12) {
-                    Text("Enabled")
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Toggle("", isOn: $viewModel.scheduleEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .tint(.accentColor)
-                        .fixedSize()
-                }
-                .padding(.leading, 12)
-                .padding(.trailing, 6)
-                .frame(height: 36)
-                .controlCapsule()
+                switchRow("Enabled", isOn: $viewModel.scheduleEnabled)
 
                 HStack(alignment: .top, spacing: 16) {
                     scheduleTimeField(
@@ -331,8 +316,30 @@ struct SchedulePopoverView: View {
                         time: $viewModel.scheduleEndTime
                     )
                 }
+
+                switchRow("Turn off with display", isOn: $viewModel.turnOffWithDisplay)
+                    .help("Turn the LEDs off while the display sleeps")
             }
         }
+    }
+
+    private func switchRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(.accentColor)
+                .fixedSize()
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .frame(height: 36)
+        .controlCapsule()
     }
 
     private func scheduleTimeField(
