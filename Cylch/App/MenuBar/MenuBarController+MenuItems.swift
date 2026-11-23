@@ -113,53 +113,6 @@ extension MenuBarController {
         return item
     }
 
-    func scheduleItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Night Schedule", action: nil, keyEquivalent: "")
-        item.image = assetImage("moon_small")
-
-        let submenu = makeMenu(title: "Night Schedule")
-        let enabledItem = actionItem("Enabled", action: #selector(toggleSchedule))
-        enabledItem.state = viewModel.scheduleEnabled ? .on : .off
-        submenu.addItem(enabledItem)
-        submenu.addItem(.separator())
-        submenu.addItem(scheduleTimeItem(
-            title: "From: \(timeString(viewModel.scheduleStartTime))",
-            earlierAction: #selector(moveScheduleStartEarlier),
-            laterAction: #selector(moveScheduleStartLater)
-        ))
-        submenu.addItem(scheduleTimeItem(
-            title: "Until: \(timeString(viewModel.scheduleEndTime))",
-            earlierAction: #selector(moveScheduleEndEarlier),
-            laterAction: #selector(moveScheduleEndLater)
-        ))
-
-        item.submenu = submenu
-        return item
-    }
-
-    func scheduleTimeItem(
-        title: String,
-        earlierAction: Selector,
-        laterAction: Selector
-    ) -> NSMenuItem {
-        guard viewModel.scheduleEnabled else { return disabledItem(title) }
-
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        let submenu = makeMenu(title: title)
-        submenu.addItem(actionItem(
-            "30 Minutes Earlier",
-            image: symbolImage("minus.circle.fill"),
-            action: earlierAction
-        ))
-        submenu.addItem(actionItem(
-            "30 Minutes Later",
-            image: symbolImage("plus.circle.fill"),
-            action: laterAction
-        ))
-        item.submenu = submenu
-        return item
-    }
-
     func levelItem(
         title: String,
         imageName: String,
@@ -229,12 +182,4 @@ extension MenuBarController {
         port.split(separator: "/").last.map(String.init) ?? port
     }
 
-    func timeString(_ time: Date) -> String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    func adjust(_ time: Date, byMinutes minutes: Int) -> Date {
-        Calendar.current.date(byAdding: .minute, value: minutes, to: time) ?? time
-    }
 }

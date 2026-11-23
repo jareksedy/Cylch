@@ -105,43 +105,6 @@ private struct CapsuleStepper: View {
     }
 }
 
-private struct TimeStepper: View {
-    @Binding var time: Date
-    var isEnabled: Bool = true
-
-    var body: some View {
-        ZStack {
-            Text(timeString)
-                .popoverNumericStyle(size: 11)
-                .frame(minWidth: 60)
-
-            HStack(spacing: 0) {
-                GlyphButton(systemName: "minus.circle.fill", isEnabled: isEnabled) {
-                    adjust(byMinutes: -30)
-                }
-
-                Spacer(minLength: 60)
-
-                GlyphButton(systemName: "plus.circle.fill", isEnabled: isEnabled) {
-                    adjust(byMinutes: 30)
-                }
-            }
-        }
-        .frame(minWidth: 132, maxWidth: .infinity)
-        .controlCapsule()
-        .opacity(isEnabled ? 1 : 0.5)
-    }
-
-    private var timeString: String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    private func adjust(byMinutes minutes: Int) {
-        time = Calendar.current.date(byAdding: .minute, value: minutes, to: time) ?? time
-    }
-}
-
 private struct ActionCapsuleButtonStyle: ButtonStyle {
     var prominent: Bool
 
@@ -237,11 +200,33 @@ struct ConnectionPopoverView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 2)
                 }
+
+                turnOffWithDisplayRow
             }
         }
         .onAppear {
             viewModel.refreshPorts()
         }
+    }
+
+    private var turnOffWithDisplayRow: some View {
+        HStack(spacing: 12) {
+            Text("Turn off with display")
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Toggle("", isOn: $viewModel.turnOffWithDisplay)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(.accentColor)
+                .fixedSize()
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .frame(height: 36)
+        .controlCapsule()
+        .help("Turn the LEDs off while the display sleeps")
     }
 
     private var portMenu: some View {
@@ -291,83 +276,6 @@ struct ConnectionPopoverView: View {
     }
 }
 
-struct SchedulePopoverView: View {
-    @StateObject private var viewModel = SettingsViewModel.shared
-
-    var body: some View {
-        SettingsPopoverPanel(
-            title: "Night Schedule",
-            imageName: "moon",
-            headerOpticalOffset: 3
-        ) {
-            VStack(spacing: 16) {
-                switchRow("Enabled", isOn: $viewModel.scheduleEnabled)
-
-                HStack(alignment: .top, spacing: 16) {
-                    scheduleTimeField(
-                        caption: "From",
-                        imageName: "moon",
-                        time: $viewModel.scheduleStartTime
-                    )
-
-                    scheduleTimeField(
-                        caption: "Until",
-                        imageName: "sun",
-                        time: $viewModel.scheduleEndTime
-                    )
-                }
-
-                switchRow("Turn off with display", isOn: $viewModel.turnOffWithDisplay)
-                    .help("Turn the LEDs off while the display sleeps")
-            }
-        }
-    }
-
-    private func switchRow(_ title: String, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .tint(.accentColor)
-                .fixedSize()
-        }
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
-        .frame(height: 36)
-        .controlCapsule()
-    }
-
-    private func scheduleTimeField(
-        caption: String,
-        imageName: String,
-        time: Binding<Date>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 5) {
-                Image(imageName)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
-                    .foregroundStyle(Color.accentColor)
-
-                Text(caption)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.leading, 3)
-
-            TimeStepper(time: time, isEnabled: viewModel.scheduleEnabled)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 #Preview {
     SettingsView()
         .frame(width: 420, height: 330)
@@ -375,8 +283,4 @@ struct SchedulePopoverView: View {
 
 #Preview("Connection Popover") {
     ConnectionPopoverView()
-}
-
-#Preview("Schedule Popover") {
-    SchedulePopoverView()
 }

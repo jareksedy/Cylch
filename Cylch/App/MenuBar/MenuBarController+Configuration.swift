@@ -50,7 +50,6 @@ extension MenuBarController {
 
         menu.addItem(.separator())
         menu.addItem(connectionItem())
-        menu.addItem(scheduleItem())
         menu.addItem(.separator())
         menu.addItem(levelItem(
             title: "Brightness: \(Int(viewModel.brightness))%",
@@ -67,12 +66,6 @@ extension MenuBarController {
             action: #selector(setSpeed)
         ))
         menu.addItem(.separator())
-
-        menu.addItem(actionItem(
-            "Turn Off with Display",
-            image: assetImage(viewModel.turnOffWithDisplay ? "switcher_on" : "switcher_off"),
-            action: #selector(toggleTurnOffWithDisplay)
-        ))
 
         let launchAtLoginStatus = SMAppService.mainApp.status
         let launchAtLoginImageName: String
@@ -144,6 +137,13 @@ extension MenuBarController {
             && (viewModel.connected || !viewModel.selectedPort.isEmpty)
         liveConnectItem = connectItem
         submenu.addItem(connectItem)
+
+        submenu.addItem(.separator())
+        submenu.addItem(actionItem(
+            "Turn Off with Display",
+            image: assetImage(viewModel.turnOffWithDisplay ? "switcher_on" : "switcher_off"),
+            action: #selector(toggleTurnOffWithDisplay)
+        ))
 
         item.submenu = submenu
         return item

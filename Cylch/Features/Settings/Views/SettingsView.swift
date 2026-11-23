@@ -6,7 +6,6 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel.shared
     @Namespace private var pickerNamespace
     @State private var showConnectionPopover = false
-    @State private var showSchedulePopover = false
 
     @ViewBuilder
     var body: some View {
@@ -24,10 +23,6 @@ struct SettingsView: View {
                     viewModel.onAppear()
                 }
                 .toolbar {
-                    ToolbarItem {
-                        scheduleToolbarButton
-                    }
-
                     ToolbarItem {
                         connectionToolbarButton
                     }
@@ -66,16 +61,13 @@ struct SettingsView: View {
 
             Spacer()
 
-            HStack(spacing: 0) {
-                scheduleToolbarButton
-                connectionToolbarButton
-            }
-            .padding(4)
-            .background {
-                Capsule()
-                    .fill(Color.primary.opacity(0.04))
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
-            }
+            connectionToolbarButton
+                .padding(4)
+                .background {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.04))
+                        .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                }
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
@@ -83,24 +75,6 @@ struct SettingsView: View {
             Rectangle()
                 .fill(Color.primary.opacity(0.08))
                 .frame(height: 1)
-        }
-    }
-
-    private var scheduleToolbarButton: some View {
-        Button {
-            showSchedulePopover.toggle()
-        } label: {
-            Image("moon")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Night Schedule")
-        .popover(isPresented: $showSchedulePopover, arrowEdge: .bottom) {
-            SchedulePopoverView()
         }
     }
 

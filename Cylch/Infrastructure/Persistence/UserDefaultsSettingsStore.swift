@@ -11,9 +11,6 @@ struct PersistedSettings: Sendable, Equatable {
     var brightness = 60.0
     var speed = 40.0
     var paused = false
-    var scheduleEnabled = false
-    var scheduleStartMinute = 23 * 60
-    var scheduleEndMinute = 7 * 60
     var turnOffWithDisplay = false
 }
 
@@ -32,9 +29,6 @@ final class UserDefaultsSettingsStore {
         static let brightness = "settings.brightness"
         static let speed = "settings.speed"
         static let paused = "settings.paused"
-        static let scheduleEnabled = "settings.schedule.enabled"
-        static let scheduleStartMinute = "settings.schedule.startMinute"
-        static let scheduleEndMinute = "settings.schedule.endMinute"
         static let turnOffWithDisplay = "settings.display.turnOffWithDisplay"
     }
 
@@ -73,15 +67,6 @@ final class UserDefaultsSettingsStore {
         if defaults.object(forKey: Key.paused) != nil {
             settings.paused = defaults.bool(forKey: Key.paused)
         }
-        if defaults.object(forKey: Key.scheduleEnabled) != nil {
-            settings.scheduleEnabled = defaults.bool(forKey: Key.scheduleEnabled)
-        }
-        if defaults.object(forKey: Key.scheduleStartMinute) != nil {
-            settings.scheduleStartMinute = defaults.integer(forKey: Key.scheduleStartMinute)
-        }
-        if defaults.object(forKey: Key.scheduleEndMinute) != nil {
-            settings.scheduleEndMinute = defaults.integer(forKey: Key.scheduleEndMinute)
-        }
         if defaults.object(forKey: Key.turnOffWithDisplay) != nil {
             settings.turnOffWithDisplay = defaults.bool(forKey: Key.turnOffWithDisplay)
         }
@@ -100,9 +85,15 @@ final class UserDefaultsSettingsStore {
         defaults.set(settings.brightness, forKey: Key.brightness)
         defaults.set(settings.speed, forKey: Key.speed)
         defaults.set(settings.paused, forKey: Key.paused)
-        defaults.set(settings.scheduleEnabled, forKey: Key.scheduleEnabled)
-        defaults.set(settings.scheduleStartMinute, forKey: Key.scheduleStartMinute)
-        defaults.set(settings.scheduleEndMinute, forKey: Key.scheduleEndMinute)
         defaults.set(settings.turnOffWithDisplay, forKey: Key.turnOffWithDisplay)
+
+        // Drop values left behind by the removed night schedule.
+        Self.legacyKeys.forEach(defaults.removeObject(forKey:))
     }
+
+    private static let legacyKeys = [
+        "settings.schedule.enabled",
+        "settings.schedule.startMinute",
+        "settings.schedule.endMinute"
+    ]
 }

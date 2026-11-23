@@ -108,26 +108,6 @@ extension MenuBarController {
         }
     }
 
-    @objc func toggleSchedule() {
-        viewModel.scheduleEnabled.toggle()
-    }
-
-    @objc func moveScheduleStartEarlier() {
-        viewModel.scheduleStartTime = adjust(viewModel.scheduleStartTime, byMinutes: -30)
-    }
-
-    @objc func moveScheduleStartLater() {
-        viewModel.scheduleStartTime = adjust(viewModel.scheduleStartTime, byMinutes: 30)
-    }
-
-    @objc func moveScheduleEndEarlier() {
-        viewModel.scheduleEndTime = adjust(viewModel.scheduleEndTime, byMinutes: -30)
-    }
-
-    @objc func moveScheduleEndLater() {
-        viewModel.scheduleEndTime = adjust(viewModel.scheduleEndTime, byMinutes: 30)
-    }
-
     @objc func setBrightness(_ sender: NSMenuItem) {
         guard let level = sender.representedObject as? Int else { return }
         viewModel.brightness = Double(level)

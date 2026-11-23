@@ -55,35 +55,11 @@ final class SettingsViewModel: ObservableObject {
     @Published private(set) var disconnecting: Bool = false
     @Published var availablePorts: [String] = []
     @Published var errorMessage: String?
-    @Published var scheduleEnabled: Bool = false {
-        didSet {
-            persistSettings()
-            updateScheduleState()
-        }
-    }
-    @Published var scheduleStartTime: Date = SettingsViewModel.timeToday(hour: 23, minute: 0) {
-        didSet {
-            persistSettings()
-            updateScheduleState()
-        }
-    }
-    @Published var scheduleEndTime: Date = SettingsViewModel.timeToday(hour: 7, minute: 0) {
-        didSet {
-            persistSettings()
-            updateScheduleState()
-        }
-    }
-    @Published private(set) var scheduleActive: Bool = false
     @Published var turnOffWithDisplay: Bool = false {
         didSet {
             persistSettings()
             pushConfig()
         }
-    }
-
-    var scheduleSummary: String {
-        guard scheduleEnabled else { return "Schedule is off" }
-        return scheduleActive ? "LEDs are off until schedule ends" : "LEDs stay on until scheduled off time"
     }
 
     private let settingsStore: UserDefaultsSettingsStore
@@ -99,11 +75,10 @@ final class SettingsViewModel: ObservableObject {
     private var reconnectGraceTask: Task<Void, Never>?
     private var reconnectRetryTask: Task<Void, Never>?
     private var reconnectAttemptsLeft = 0
-    private var scheduleTask: Task<Void, Never>?
     private var preserveReconnectPreferenceDuringFade = false
     private var disconnectionCompletions: [() -> Void] = []
 
-    private static let lightTransitionDuration: TimeInterval = 0.5
+    private nonisolated static let lightTransitionDuration: TimeInterval = 0.5
     /// How long the stream stays "connected" while waiting for a dropped device to come back.
     private static let reconnectGracePeriod: Duration = .seconds(3)
     private static let reconnectRetryInterval: Duration = .milliseconds(500)
@@ -128,13 +103,6 @@ final class SettingsViewModel: ObservableObject {
         } ?? LEDColor.palette[0]
         paused = persisted.paused
         selectedPort = persisted.selectedPort
-        scheduleEnabled = persisted.scheduleEnabled
-        scheduleStartTime = Self.timeToday(
-            minuteOfDay: min(1_439, max(0, persisted.scheduleStartMinute))
-        )
-        scheduleEndTime = Self.timeToday(
-            minuteOfDay: min(1_439, max(0, persisted.scheduleEndMinute))
-        )
         turnOffWithDisplay = persisted.turnOffWithDisplay
 
         controller.onConnectedChanged = { [weak self] isConnected in
@@ -165,7 +133,6 @@ final class SettingsViewModel: ObservableObject {
         deviceMonitor.start()
         displaySleepMonitor.start()
         refreshPorts()
-        startScheduleMonitor()
         pushConfig()
     }
 
@@ -199,7 +166,6 @@ final class SettingsViewModel: ObservableObject {
         deviceMonitor.start()
         displaySleepMonitor.start()
         refreshPorts()
-        startScheduleMonitor()
         pushConfig()
 
         guard connectionPreference,
@@ -403,7 +369,6 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private func persistSettings() {
-        let calendar = Calendar.current
         settingsStore.save(PersistedSettings(
             selectedPort: selectedPort,
             ledCount: ledCount,
@@ -413,9 +378,6 @@ final class SettingsViewModel: ObservableObject {
             brightness: brightness,
             speed: speed,
             paused: paused,
-            scheduleEnabled: scheduleEnabled,
-            scheduleStartMinute: Self.minuteOfDay(from: scheduleStartTime, calendar: calendar),
-            scheduleEndMinute: Self.minuteOfDay(from: scheduleEndTime, calendar: calendar),
             turnOffWithDisplay: turnOffWithDisplay
         ))
     }
@@ -428,54 +390,8 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private var currentConfig: StreamConfig {
-        let lightsOff = scheduleActive || (turnOffWithDisplay && displaySleepMonitor.displaysAsleep)
+        let lightsOff = turnOffWithDisplay && displaySleepMonitor.displaysAsleep
         return StreamConfig(effect: selectedEffect, staticColor: staticColor, brightness: brightness, speed: speed, ledCount: ledCount, paused: paused, lightsOff: lightsOff)
-    }
-
-    private func startScheduleMonitor() {
-        guard scheduleTask == nil else { return }
-        updateScheduleState()
-
-        scheduleTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000)
-                self?.updateScheduleState()
-            }
-        }
-    }
-
-    private func updateScheduleState(now: Date = Date()) {
-        let isActive = scheduleEnabled && Self.isTime(now, inQuietHoursFrom: scheduleStartTime, until: scheduleEndTime)
-        guard scheduleActive != isActive else { return }
-        scheduleActive = isActive
-        pushConfig()
-    }
-
-    private static func isTime(_ date: Date, inQuietHoursFrom startDate: Date, until endDate: Date) -> Bool {
-        let calendar = Calendar.current
-        let currentMinute = minuteOfDay(from: date, calendar: calendar)
-        let startMinute = minuteOfDay(from: startDate, calendar: calendar)
-        let endMinute = minuteOfDay(from: endDate, calendar: calendar)
-
-        guard startMinute != endMinute else { return false }
-        if startMinute < endMinute {
-            return currentMinute >= startMinute && currentMinute < endMinute
-        }
-
-        return currentMinute >= startMinute || currentMinute < endMinute
-    }
-
-    private static func minuteOfDay(from date: Date, calendar: Calendar) -> Int {
-        let components = calendar.dateComponents([.hour, .minute], from: date)
-        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
-    }
-
-    private static func timeToday(hour: Int, minute: Int) -> Date {
-        Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date()
-    }
-
-    private static func timeToday(minuteOfDay: Int) -> Date {
-        timeToday(hour: minuteOfDay / 60, minute: minuteOfDay % 60)
     }
 
     private static func preferredPort(in ports: [String]) -> String? {
