@@ -256,6 +256,9 @@ final class AdalightController {
             let snapshot = streamSnapshot()
             var config = snapshot.config
             var frame: [UInt8]
+            // While a fade or transition runs, neighboring frames can round to the same bytes,
+            // so the idle shortcuts below must not kick in until the animation is over.
+            var isAnimating = false
 
             if let fadeOut = snapshot.fadeOut,
                fadeOut.runGeneration == runGeneration {
@@ -265,6 +268,7 @@ final class AdalightController {
                     break
                 }
 
+                isAnimating = true
                 let progress = Double(elapsed) / Double(fadeOut.durationNanoseconds)
                 let smoothProgress = Self.smoothStep(progress)
 
@@ -289,6 +293,7 @@ final class AdalightController {
                       fadeIn.runGeneration == runGeneration {
                 let elapsed = DispatchTime.now().uptimeNanoseconds - fadeIn.startedAtNanoseconds
                 if elapsed < fadeIn.durationNanoseconds {
+                    isAnimating = true
                     let progress = Double(elapsed) / Double(fadeIn.durationNanoseconds)
                     config.brightness *= Self.smoothStep(progress)
                 }
@@ -302,6 +307,7 @@ final class AdalightController {
                transition.runGeneration == runGeneration {
                 let elapsed = DispatchTime.now().uptimeNanoseconds - transition.startedAtNanoseconds
                 if elapsed < transition.durationNanoseconds {
+                    isAnimating = true
                     let progress = Double(elapsed) / Double(transition.durationNanoseconds)
                     frame = blendFrames(
                         from: transition.fromFrame,
@@ -313,7 +319,7 @@ final class AdalightController {
 
             lastLEDCount = max(1, min(300, config.ledCount))
 
-            if frame == lastSentFrame {
+            if !isAnimating, frame == lastSentFrame {
                 // Once the strip is dark and stays dark, stop streaming until something changes.
                 if frame.dropFirst(6).allSatisfy({ $0 == 0 }) {
                     _ = wakeSignal.wait(timeout: .now() + Self.idleCheckInterval)
