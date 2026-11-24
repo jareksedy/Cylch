@@ -61,6 +61,8 @@ final class AdalightController {
     /// Wakes an idle stream as soon as there is something new to show.
     private let wakeSignal = DispatchSemaphore(value: 0)
     private static let idleCheckInterval: DispatchTimeInterval = .seconds(1)
+    /// How often an unchanged lit frame is resent to keep the device in streaming mode.
+    private static let keepAliveInterval: DispatchTimeInterval = .seconds(1)
 
     func updateConfig(_ config: StreamConfig, visualTransitionDuration: TimeInterval = 0) {
         let durationNanoseconds = UInt64(max(0, visualTransitionDuration) * 1_000_000_000)
@@ -248,6 +250,7 @@ final class AdalightController {
 
         var gradientOffset = 0.0
         var lastSentFrame: [UInt8]?
+        var lastSentAt = DispatchTime.now()
 
         while isCurrent(runGeneration) {
             let snapshot = streamSnapshot()
@@ -310,10 +313,20 @@ final class AdalightController {
 
             lastLEDCount = max(1, min(300, config.ledCount))
 
-            // Once the strip is dark and stays dark, stop streaming until something changes.
-            if frame == lastSentFrame, frame.dropFirst(6).allSatisfy({ $0 == 0 }) {
-                _ = wakeSignal.wait(timeout: .now() + Self.idleCheckInterval)
-                continue
+            if frame == lastSentFrame {
+                // Once the strip is dark and stays dark, stop streaming until something changes.
+                if frame.dropFirst(6).allSatisfy({ $0 == 0 }) {
+                    _ = wakeSignal.wait(timeout: .now() + Self.idleCheckInterval)
+                    continue
+                }
+
+                // A lit but unchanged picture only needs an occasional resend, so the
+                // firmware does not time out and blank the strip or fall back to its own effect.
+                let keepAliveDeadline = lastSentAt + Self.keepAliveInterval
+                if DispatchTime.now() < keepAliveDeadline {
+                    _ = wakeSignal.wait(timeout: keepAliveDeadline)
+                    continue
+                }
             }
 
             if let failure = writeAll(frame, to: fd) {
@@ -321,6 +334,7 @@ final class AdalightController {
                 break
             }
             lastSentFrame = frame
+            lastSentAt = .now()
             recordLastFrame(frame, for: runGeneration)
             // Changes signaled up to now are picked up by the next snapshot anyway.
             while wakeSignal.wait(timeout: .now()) == .success {}
