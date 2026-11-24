@@ -34,6 +34,7 @@ extension MenuBarController {
             DispatchQueue.main.async { [weak self, weak button] in
                 guard let self, let button else { return }
                 button.highlight(true)
+                self.loadSettingsContentIfNeeded()
                 self.settingsPopover.show(
                     relativeTo: button.bounds,
                     of: button,

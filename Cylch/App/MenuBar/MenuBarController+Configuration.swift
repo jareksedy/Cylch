@@ -22,6 +22,12 @@ extension MenuBarController {
         settingsPopover.animates = true
         settingsPopover.delegate = self
         settingsPopover.contentSize = NSSize(width: 396, height: 382)
+    }
+
+    /// The settings view is built on demand and released on close, so the SwiftUI
+    /// hierarchy and its layers don't stay in memory while the app sits in the menu bar.
+    func loadSettingsContentIfNeeded() {
+        guard settingsPopover.contentViewController == nil else { return }
         settingsPopover.contentViewController = NSHostingController(
             rootView: SettingsView(showsInlineHeader: true)
                 .frame(width: 396, height: 382)

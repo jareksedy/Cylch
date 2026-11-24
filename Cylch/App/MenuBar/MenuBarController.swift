@@ -50,6 +50,7 @@ final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         stopMonitoringSettingsOutsideClicks()
         statusItem.button?.highlight(false)
+        settingsPopover.contentViewController = nil
     }
 
     func popoverDidShow(_ notification: Notification) {
